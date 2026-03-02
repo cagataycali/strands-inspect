@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  lint-format:
+    name: "Lint & Format"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install tools
+        run: |
+          pip install black mypy
+          pip install -e .
+
+      - name: Black (auto-fix)
+        run: |
+          black strands_inspect/ tests/
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "style: auto-format with black"
+            git push
+          fi
+
+      - name: mypy (type check)
+        run: |
+          mypy strands_inspect/ \
+            --ignore-missing-imports \
+            --no-strict-optional \
+            --allow-untyped-defs \
+            --no-warn-return-any \
+            --show-error-codes \
+            --no-error-summary \
+            || echo "::warning::mypy found type issues (non-blocking)"
+
+  test:
+    name: "Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})"
+    needs: lint-format
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: |
+          pip install -e .
+          pip install pytest pytest-cov
+
+      - name: Test with coverage
+        run: |
+          pytest tests/ \
+            --cov=strands_inspect \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80 \
+            -v
+
+      - name: Upload coverage
+        if: matrix.python-version == '3.13' && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
