@@ -29,6 +29,7 @@ Claude Desktop config:
       }
     }
 """
+
 from __future__ import annotations
 
 import argparse
@@ -79,17 +80,30 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__.split("Usage:")[1] if "Usage:" in (__doc__ or "") else "",
     )
-    parser.add_argument("--http", action="store_true",
-                        help="Run HTTP transport instead of stdio (default: stdio)")
+    parser.add_argument(
+        "--http", action="store_true", help="Run HTTP transport instead of stdio (default: stdio)"
+    )
     parser.add_argument("--port", type=int, default=8000, help="HTTP port (default: 8000)")
-    parser.add_argument("--stateless", action="store_true",
-                        help="Stateless HTTP mode (multi-node scalable)")
-    parser.add_argument("--tools", type=str, default=None,
-                        help="Comma-separated tool names to expose (default: all available)")
-    parser.add_argument("--skip", type=str, default="",
-                        help="Comma-separated groups to skip: " + ",".join(TOOL_GROUPS))
-    parser.add_argument("--agent-invocation", action="store_true",
-                        help="Also expose invoke_agent for full conversations (default: off — tools only)")
+    parser.add_argument(
+        "--stateless", action="store_true", help="Stateless HTTP mode (multi-node scalable)"
+    )
+    parser.add_argument(
+        "--tools",
+        type=str,
+        default=None,
+        help="Comma-separated tool names to expose (default: all available)",
+    )
+    parser.add_argument(
+        "--skip",
+        type=str,
+        default="",
+        help="Comma-separated groups to skip: " + ",".join(TOOL_GROUPS),
+    )
+    parser.add_argument(
+        "--agent-invocation",
+        action="store_true",
+        help="Also expose invoke_agent for full conversations (default: off — tools only)",
+    )
     parser.add_argument("--debug", action="store_true", help="Debug logging")
     args = parser.parse_args()
 
@@ -129,7 +143,11 @@ def main() -> None:
     # Call the raw tool function directly (NOT agent.tool.mcp_server) —
     # agent.tool.* marks the agent as mid-invocation, and since stdio mode
     # blocks forever, all nested tool calls would then be rejected by the SDK.
-    _fn = getattr(mcp_server, "_tool_func", None) or getattr(mcp_server, "original_function", None) or mcp_server
+    _fn = (
+        getattr(mcp_server, "_tool_func", None)
+        or getattr(mcp_server, "original_function", None)
+        or mcp_server
+    )
     _fn(
         action="start",
         transport=transport,
@@ -142,6 +160,7 @@ def main() -> None:
     if args.http:
         # HTTP runs in background thread — keep process alive
         import time
+
         logger.info(f"HTTP MCP server live at http://localhost:{args.port}/mcp (Ctrl+C to stop)")
         try:
             while True:
