@@ -27,12 +27,16 @@ classifiers = [
 ]
 dependencies = [
     "strands-agents>=0.1.0",
+    "strands-mcp-server",
 ]
 
 [project.urls]
 Homepage = "https://github.com/cagataycali/strands-inspect"
 Repository = "https://github.com/cagataycali/strands-inspect"
 Issues = "https://github.com/cagataycali/strands-inspect/issues"
+
+[project.scripts]
+strands-inspect = "strands_inspect.mcp:main"
 
 [tool.setuptools.packages.find]
 include = ["strands_inspect*"]

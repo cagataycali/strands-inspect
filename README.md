@@ -12,6 +12,35 @@ See what your code does. Control what it can do.
 pip install strands-inspect
 ```
 
+## 🔌 Use as an MCP server
+
+Use strands-inspect from **Claude Code, Claude Desktop, Cursor, Kiro, or any MCP client** — the `inspect` tool (scan, profile, sandbox) becomes an MCP tool.
+
+```bash
+claude mcp add inspect -- uvx strands-inspect
+```
+
+Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "inspect": {
+      "command": "uvx",
+      "args": ["strands-inspect"]
+    }
+  }
+}
+```
+
+Options:
+
+```bash
+strands-inspect --http --port 8000   # HTTP mode, multi-client
+```
+
+---
+
 ## `@watch` — see everything
 
 ```python
