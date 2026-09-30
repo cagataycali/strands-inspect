@@ -94,6 +94,10 @@ def unescape(body: str, line: int, col: int, allow_star: bool = False) -> str:
         elif e == "x":
             hexs = body[i : i + 2]
             if len(hexs) == 2 and all(c in "0123456789abcdefABCDEF" for c in hexs):
+                if int(hexs, 16) > 0x7F:
+                    raise LexError(
+                        f"the input `\\x{hexs}` is not a valid escape (ASCII range only)", line, col
+                    )
                 out.append(chr(int(hexs, 16)))
                 i += 2
             else:
