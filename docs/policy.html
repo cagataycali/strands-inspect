@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>strands-inspect · Policy reference</title>
+  <meta name="description" content="Dogwood, the policy language of strands-inspect: the Inspect action schema, presets, temporal operators, CLI, conformance."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <style>
+    :root{--bg:#0a0a0a;--card:rgba(255,255,255,.02);--bdr:rgba(255,255,255,.08);--tx:#e0e0e0;--dim:rgba(255,255,255,.45);--mut:rgba(255,255,255,.22);--w:#fff;--r:#e85050;--f:'Inter',system-ui,sans-serif;--m:'Space Mono',monospace}
+    *{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent}
+    body{font-family:var(--f);background:var(--bg);color:var(--tx);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+    body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.02;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+    ::selection{background:rgba(255,255,255,.12)}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
+    #wave{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.45}
+    a{color:inherit;text-decoration:none}.c{max-width:900px;margin:0 auto;padding:0 28px;position:relative;z-index:1}
+    nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 0;background:rgba(10,10,10,.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr)}
+    nav .c{display:flex;align-items:center;justify-content:space-between}
+    .n-brand{font-size:15px;font-weight:700;letter-spacing:-.3px;color:var(--w)}
+    .n-links{display:flex;align-items:center;gap:28px}
+    .n-link{font-size:13px;color:var(--dim);transition:color .2s}.n-link:hover{color:var(--w)}
+    .n-cta{font-size:12px;font-weight:700;padding:8px 18px;border-radius:8px;background:var(--w);color:#000;font-family:var(--m)}.n-cta:hover{opacity:.85}
+    .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:160px 0 100px}
+    .hero h1{font-size:clamp(40px,6.5vw,72px);font-weight:900;line-height:1.05;letter-spacing:-2.5px;color:var(--w);margin-bottom:24px;max-width:700px}
+    .hero-sub{font-size:18px;color:var(--dim);line-height:1.65;max-width:520px;margin-bottom:40px}
+    .hero-install{font-family:var(--m);font-size:14px;padding:14px 24px;background:rgba(255,255,255,.04);border:1px solid var(--bdr);border-radius:10px;display:inline-block;color:var(--w);margin-bottom:36px;cursor:pointer;transition:all .2s}
+    .hero-install:hover{background:rgba(255,255,255,.07)}.hero-install span{color:var(--dim)}
+    .hero-links{display:flex;gap:12px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;border:none;font-family:var(--f)}
+    .btn-w{background:var(--w);color:#000}.btn-w:hover{opacity:.85}
+    .btn-o{background:transparent;color:var(--dim);border:1px solid var(--bdr)}.btn-o:hover{border-color:rgba(255,255,255,.2);color:var(--w)}
+    .sec{padding:100px 0}.sec-border{border-top:1px solid var(--bdr)}
+    .sec-label{font-size:11px;font-weight:700;color:var(--mut);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;font-family:var(--m)}
+    .sec-title{font-size:clamp(28px,4vw,42px);font-weight:800;color:var(--w);letter-spacing:-1.2px;line-height:1.1;margin-bottom:16px}
+    .sec-desc{font-size:16px;color:var(--dim);line-height:1.7;max-width:520px;margin-bottom:48px}
+    .term{background:rgba(255,255,255,.02);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin:40px 0}
+    .term-bar{display:flex;align-items:center;gap:7px;padding:12px 16px;border-bottom:1px solid var(--bdr)}
+    .term-dot{width:10px;height:10px;border-radius:50%}
+    .term-label{font-size:11px;color:var(--mut);font-family:var(--m);margin-left:auto}
+    .term-body{padding:20px;font-family:var(--m);font-size:12.5px;line-height:2;color:var(--dim)}
+    .term-body .kw{color:#8a8aaa}.term-body .fn{color:var(--w)}.term-body .str{color:#a0a0a0}.term-body .cm{color:var(--mut)}.term-body .red{color:var(--r)}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .term-body .id{color:#7fb5a0}.term-body .grp{color:#c9b28a}
+    .two-card{padding:32px 24px;border-radius:14px;border:1px solid var(--bdr);background:var(--card);transition:all .3s}
+    .two-card:hover{border-color:rgba(255,255,255,.15)}
+    .two-card h3{font-size:22px;font-weight:800;color:var(--w);margin-bottom:4px;letter-spacing:-.3px;font-family:var(--m)}
+    .two-card .sub{font-size:13px;color:var(--mut);margin-bottom:14px}
+    .two-card p{font-size:14px;color:var(--dim);line-height:1.6}
+    .cases{display:flex;flex-direction:column}.case{padding:32px 0;border-bottom:1px solid var(--bdr)}.case:last-child{border-bottom:none}
+    .case-n{font-size:11px;font-family:var(--m);color:var(--mut);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+    .case-title{font-size:18px;font-weight:700;color:var(--w);margin-bottom:6px}
+    .case-desc{font-size:14px;color:var(--dim);line-height:1.6;max-width:600px}
+    .examples{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .ex-card{padding:24px;border-radius:12px;border:1px solid var(--bdr);background:var(--card);cursor:pointer;transition:all .3s}
+    .ex-card:hover{border-color:rgba(255,255,255,.15);transform:translateY(-2px)}
+    .ex-card h4{font-size:14px;font-weight:700;color:var(--w);margin-bottom:6px}.ex-card p{font-size:12px;color:var(--dim);line-height:1.5}
+    .ex-card .ex-stats{font-family:var(--m);font-size:11px;color:var(--mut);margin-top:10px}
+    .viewer-wrap{border-radius:16px;border:1px solid var(--bdr);overflow:hidden;background:#000}
+    .viewer-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--bdr)}
+    .viewer-bar-dots{display:flex;gap:7px}.viewer-iframe{width:100%;height:640px;border:none}
+    .cta{text-align:center;padding:120px 0}.cta h2{font-size:clamp(28px,4vw,40px);font-weight:800;color:var(--w);letter-spacing:-1px;margin-bottom:14px}
+    .cta p{font-size:16px;color:var(--dim);margin-bottom:32px}.cta-actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+    footer{padding:40px 0;border-top:1px solid var(--bdr)}.foot{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--mut)}
+    .foot a{color:var(--dim)}.foot a:hover{color:var(--w)}.foot-links{display:flex;gap:24px}
+    .rv{opacity:0;transform:translateY(24px);transition:all .6s cubic-bezier(.16,1,.3,1)}.rv.v{opacity:1;transform:translateY(0)}
+    @media(max-width:768px){.n-link{display:none}.two{grid-template-columns:1fr}.three{grid-template-columns:1fr}.examples{grid-template-columns:1fr}.foot{flex-direction:column;gap:16px;text-align:center}}
+  </style>
+  <style>
+  .ref{padding:140px 0 60px}.ref h1{font-size:clamp(34px,5vw,56px);font-weight:900;letter-spacing:-2px;color:var(--w);margin-bottom:16px;line-height:1.05}
+  .ref p.lead{font-size:17px;color:var(--dim);line-height:1.65;max-width:640px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin:24px 0}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--bdr);vertical-align:top}
+  th{font-family:var(--m);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}td code,p code,li code{font-family:var(--m);font-size:12px;color:var(--w);background:rgba(255,255,255,.04);padding:1px 5px;border-radius:4px}
+  pre{font-family:var(--m);font-size:12.5px;line-height:1.75;color:var(--dim);background:rgba(255,255,255,.02);border:1px solid var(--bdr);border-radius:12px;padding:18px 20px;overflow-x:auto;margin:16px 0}
+  pre .cm{color:var(--mut)}pre .id{color:#7fb5a0}pre .kw{color:#8a8aaa}pre .grp{color:#c9b28a}
+  .sec h2{font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--w);letter-spacing:-1px;margin-bottom:12px}.sec p{font-size:15px;color:var(--dim);line-height:1.7;max-width:720px}
+  .sec h3{font-size:15px;font-weight:700;color:var(--w);margin:28px 0 8px;font-family:var(--m)}ul{padding-left:20px;color:var(--dim);font-size:14px;line-height:1.8}
+  .sec{padding:64px 0}
+</style>
+</head>
+<body>
+<nav><div class="c">
+  <a href="index.html" class="n-brand">strands-inspect</a>
+  <div class="n-links">
+    <a href="index.html#watch-lock" class="n-link">@watch / @lock</a>
+    <a href="#schema" class="n-link">Schema</a>
+    <a href="#presets" class="n-link">Presets</a>
+    <a href="#temporal" class="n-link">Temporal</a>
+    <a href="#cli" class="n-link">CLI</a>
+    <a href="https://github.com/cagataycali/strands-inspect" target="_blank" class="n-link">GitHub</a>
+    <a href="https://pypi.org/project/strands-inspect/" target="_blank" class="n-cta">pip install</a>
+  </div>
+</div></nav>
+
+<section class="ref"><div class="c">
+  <div class="sec-label">Policy reference</div>
+  <h1>Dogwood, the policy language of strands-inspect.</h1>
+  <p class="lead"><a href="https://github.com/dogwood-policy/dogwood" target="_blank" style="color:var(--w);border-bottom:1px solid var(--bdr)">Dogwood</a> is Cedar with a temporal sub-language. A <code>.dw</code> file is a list of <code>permit</code> / <code>forbid</code> rules over <code>(principal, action, resource)</code> with <code>when</code> / <code>unless</code> conditions. Forbid always wins; nothing matched means deny. strands-inspect ships a pure-Python, stdlib-only implementation (<code>strands_inspect.dogwood</code>) and uses it for every <code>@watch</code> policy; <code>@lock</code> projects the same file onto the kernel sandbox.</p>
+  <pre><span class="cm">// the shape of a rule</span>
+<span class="id">@id("name-shown-in-the-violation")</span>
+<span class="kw">permit</span> | <span class="kw">forbid</span> ( principal, action == <span class="grp">Inspect::Action::"file.read"</span>, resource )
+<span class="kw">when</span> { context.input.path like "/data/*" }
+<span class="kw">when</span> <span class="kw">temporal</span> { <span class="kw">formerly</span> <span class="kw">within</span> 1h <span class="grp">Inspect::Action::"network"</span>::request{} };</pre>
+</div></section>
+
+<section class="sec sec-border" id="schema"><div class="c">
+  <h2>The Inspect action schema</h2>
+  <p><code>principal</code> is the watched function, <code>Inspect::Function::"module.name"</code> with attributes <code>module</code> and <code>name</code>. <code>resource</code> is the process, <code>Inspect::Process::"&lt;pid&gt;"</code> with <code>pid</code> and <code>cwd</code>. <code>action</code> is one of the 20 hooked categories; five action groups (<code>file</code>, <code>net</code>, <code>os</code>, <code>process</code>, <code>meta</code>) let one rule cover a family: <code>action in [Inspect::Action::"net"]</code>. Every action's <code>context.input</code> carries <code>detail</code> (the one-line description) and <code>op</code> (the hooked callable, e.g. <code>open</code>, <code>shutil.copy</code>, <code>subprocess.Popen</code>) plus the typed fields below. <code>context.system</code> is <code>{ now: datetime, session: String }</code>; the <code>response</code> event adds <code>context.output.allowed</code>.</p>
+  <table><thead><tr><th>action</th><th>group</th><th>context.input fields (plus detail, op)</th></tr></thead><tbody><tr><td><code>file.read</code></td><td>file</td><td>path: String, mode: String, sensitive: Bool</td></tr><tr><td><code>file.write</code></td><td>file</td><td>path: String, mode: String, sensitive: Bool</td></tr><tr><td><code>file.delete</code></td><td>file</td><td>path: String</td></tr><tr><td><code>file.move</code></td><td>file</td><td>src: String, dst: String</td></tr><tr><td><code>file.chmod</code></td><td>file</td><td>path: String, mode: String</td></tr><tr><td><code>file.link</code></td><td>file</td><td>src: String, dst: String</td></tr><tr><td><code>file.mkdir</code></td><td>file</td><td>path: String</td></tr><tr><td><code>file.fd_io</code></td><td>file</td><td>fd: Long, size: Long</td></tr><tr><td><code>file.special</code></td><td>file</td><td>path: String</td></tr><tr><td><code>network</code></td><td>net</td><td>host: String, port: Long, url: String, scheme: String, method: String</td></tr><tr><td><code>net.socket</code></td><td>net</td><td>host: String, port: Long, size: Long</td></tr><tr><td><code>subprocess</code></td><td>os</td><td>command: String, program: String, argv: Set&lt;String&gt;, shell: Bool</td></tr><tr><td><code>os.system</code></td><td>os</td><td>command: String, program: String, argv: Set&lt;String&gt;, shell: Bool</td></tr><tr><td><code>os.exec</code></td><td>os</td><td>command: String, program: String, argv: Set&lt;String&gt;, shell: Bool</td></tr><tr><td><code>process.fork</code></td><td>process</td><td>—</td></tr><tr><td><code>process.kill</code></td><td>process</td><td>pid: Long, signal: Long</td></tr><tr><td><code>process.mp</code></td><td>process</td><td>name: String, target: String</td></tr><tr><td><code>import</code></td><td>—</td><td>module: String, package: String</td></tr><tr><td><code>meta.ctypes</code></td><td>meta</td><td>library: String</td></tr><tr><td><code>meta.code</code></td><td>meta</td><td>source: String</td></tr></tbody></table>
+  <p><code>sensitive</code> is true for paths under <code>~/.ssh</code>, <code>~/.aws</code>, <code>~/.gnupg</code>, <code>~/.config/gcloud</code>, <code>~/.kube</code>, for <code>/etc/shadow</code> and <code>/etc/passwd</code>, and for basenames matching <code>.env*</code>, <code>*.pem</code>, <code>*.key</code>, <code>id_*</code>, <code>*credentials*</code>, <code>*.keychain*</code>. The schema ships as <code>strands_inspect/dogwood/inspect.cedarschema</code> and the reference <code>dogwood validate</code> accepts every preset against it.</p>
+</div></section>
+
+<section class="sec sec-border" id="presets"><div class="c">
+  <h2>Presets</h2>
+  <p>A preset name given to <code>@watch(policy=...)</code> loads one of these files from <code>strands_inspect/policies/</code>. A <code>permit</code> annotated <code>@ask</code> is granted only after a <code>y/N</code> prompt.</p>
+  <h3>allow_all</h3><pre><span class="cm">// allow_all: every hooked action is permitted and recorded in the session trace.</span>
+<span class="cm">// This is the default of @watch: see everything, block nothing.</span>
+<span class="id">@id(&quot;allow-everything&quot;)</span>
+<span class="kw">permit</span> ( principal, action, resource );
+</pre><h3>deny_all</h3><pre><span class="cm">// deny_all: nothing is permitted. Dogwood is default-deny, so an empty policy set would</span>
+<span class="cm">// behave the same; the explicit <span class="kw">forbid</span> names the rule in every PolicyViolation.</span>
+<span class="id">@id(&quot;deny-everything&quot;)</span>
+<span class="kw">forbid</span> ( principal, action, resource );
+</pre><h3>deny_network</h3><pre><span class="cm">// deny_network: everything is permitted except the network. `net` is the action group</span>
+<span class="cm">// that holds `network` (connect / urlopen / requests / http.client) and `net.socket`</span>
+<span class="cm">// (bind / listen / send). Forbid always wins over <span class="kw">permit</span>.</span>
+<span class="id">@id(&quot;allow-everything&quot;)</span>
+<span class="kw">permit</span> ( principal, action, resource );
+
+<span class="id">@id(&quot;deny-network&quot;)</span>
+<span class="kw">forbid</span> ( principal, action in [<span class="grp">Inspect::Action::&quot;net&quot;</span>], resource );
+</pre><h3>deny_write</h3><pre><span class="cm">// deny_write: read-only filesystem. Writes, deletes, moves and permission changes are</span>
+<span class="cm">// forbidden; everything else (reads, network, subprocesses, imports) is permitted.</span>
+<span class="id">@id(&quot;allow-everything&quot;)</span>
+<span class="kw">permit</span> ( principal, action, resource );
+
+<span class="id">@id(&quot;deny-file-mutation&quot;)</span>
+<span class="kw">forbid</span> (
+    principal,
+    action in [
+        <span class="grp">Inspect::Action::&quot;file.write&quot;</span>,
+        <span class="grp">Inspect::Action::&quot;file.delete&quot;</span>,
+        <span class="grp">Inspect::Action::&quot;file.move&quot;</span>,
+        <span class="grp">Inspect::Action::&quot;file.chmod&quot;</span>
+    ],
+    resource
+);
+</pre><h3>sandbox</h3><pre><span class="cm">// sandbox: the function may read files and import modules; every other hooked action is</span>
+<span class="cm">// denied. Dogwood is default-deny, so only the two permits are needed: no network, no</span>
+<span class="cm">// subprocess, no writes, no process control, no ctypes/eval.</span>
+<span class="id">@id(&quot;allow-file-read&quot;)</span>
+<span class="kw">permit</span> ( principal, action == <span class="grp">Inspect::Action::&quot;file.read&quot;</span>, resource );
+
+<span class="id">@id(&quot;allow-import&quot;)</span>
+<span class="kw">permit</span> ( principal, action == <span class="grp">Inspect::Action::&quot;import&quot;</span>, resource );
+</pre><h3>strict</h3><pre><span class="cm">// strict: like sandbox, but every file read and every import needs the operator&#x27;s</span>
+<span class="cm">// interactive approval. A <span class="kw">permit</span> annotated <span class="id">@ask</span> is granted only after a y/N prompt;</span>
+<span class="cm">// everything else is denied by default.</span>
+<span class="id">@ask</span>
+<span class="id">@id(&quot;ask-file-read&quot;)</span>
+<span class="kw">permit</span> ( principal, action == <span class="grp">Inspect::Action::&quot;file.read&quot;</span>, resource );
+
+<span class="id">@ask</span>
+<span class="id">@id(&quot;ask-import&quot;)</span>
+<span class="kw">permit</span> ( principal, action == <span class="grp">Inspect::Action::&quot;import&quot;</span>, resource );
+</pre>
+</div></section>
+
+<section class="sec sec-border" id="temporal"><div class="c">
+  <h2>Temporal conditions</h2>
+  <p>Inside <code>when temporal { ... }</code> a rule can look back at the function's own event trace: one <code>request</code> event per hook check and one <code>response</code> event with <code>output.allowed</code> after it. Every operator carries a mandatory window; windows are closed (an event exactly <code>W</code> back is in). History is keyed per watched function, so another function's calls are invisible.</p>
+  <table><thead><tr><th>form</th><th>true at the current check when</th></tr></thead><tbody>
+    <tr><td><code>formerly within 5m P</code></td><td>some event in the last 5 minutes (this one included) matches <code>P</code></td></tr>
+    <tr><td><code>previous within 1m P</code></td><td>the event just before this one is at most 1 minute old and matches <code>P</code></td></tr>
+    <tr><td><code>!P since within 1h Q</code></td><td><code>Q</code> happened in the last hour and no <code>P</code> happened at any step after it</td></tr>
+    <tr><td><code>A &amp;&amp; B</code>, <code>!A</code></td><td>conjunction and negation; there is no <code>||</code>: write two rules instead</td></tr>
+    <tr><td><code>exists (n: Long). ((count_within(1m, P)) == n &amp;&amp; n &gt; 3)</code></td><td>the number of timepoints in the last minute at which <code>P</code> matched is above 3</td></tr>
+    <tr><td><code>sum_within(a, 1h, P{ input.size: a })</code></td><td>the sum of <code>size</code> over matching events (an aggregate is always compared: <code>(...) == total</code>)</td></tr>
+    <tr><td><code>count_distinct_within(h, 1h, P{ input.host: h })</code></td><td>how many distinct hosts matched</td></tr>
+  </tbody></table>
+  <h3>predicates</h3>
+  <p><code>Inspect::Action::"file.read"::request{ input.sensitive: true, input.path: context.input.path }</code> names an action, an event kind and field patterns. A pattern is a literal, <code>context.input.x</code> (the current call's value: "the same path"), a variable bound by <code>exists</code>, or the wildcard <code>_</code>. <code>{}</code> matches any event of that kind.</p>
+  <h3>recipes</h3>
+  <pre><span class="cm">// no network or process after a credential-shaped read</span>
+<span class="kw">forbid</span>(principal, action in [<span class="grp">Inspect::Action::"net"</span>, <span class="grp">Inspect::Action::"os"</span>], resource)
+<span class="kw">when</span> <span class="kw">temporal</span> { <span class="kw">formerly</span> <span class="kw">within</span> 5m <span class="grp">Inspect::Action::"file.read"</span>::request{ input.sensitive: true } };
+
+<span class="cm">// no write after the network was touched</span>
+<span class="kw">forbid</span>(principal, action == <span class="grp">Inspect::Action::"file.write"</span>, resource)
+<span class="kw">when</span> <span class="kw">temporal</span> { <span class="kw">formerly</span> <span class="kw">within</span> 1h <span class="grp">Inspect::Action::"network"</span>::request{} };
+
+<span class="cm">// at most 3 subprocesses per minute</span>
+<span class="kw">forbid</span>(principal, action == <span class="grp">Inspect::Action::"subprocess"</span>, resource)
+<span class="kw">when</span> <span class="kw">temporal</span> {
+    <span class="kw">exists</span> (n: Long). (
+        (count_within(1m, <span class="grp">Inspect::Action::"subprocess"</span>::request{ input.op: "subprocess.Popen" })) == n
+        &amp;&amp; n &gt; 3
+    )
+};
+
+<span class="cm">// a second read of the same file is fine only if the first one was allowed</span>
+<span class="kw">permit</span>(principal, action == <span class="grp">Inspect::Action::"file.read"</span>, resource)
+<span class="kw">when</span> <span class="kw">temporal</span> {
+    <span class="kw">formerly</span> <span class="kw">within</span> 1h <span class="grp">Inspect::Action::"file.read"</span>::response{ input.path: context.input.path, output.allowed: true }
+};</pre>
+  <p>The full language (macros with <code>def temporal</code>, the acceptance rules, evaluation semantics) is documented at <a href="https://dogwood-policy.github.io/dogwood/" target="_blank" style="color:var(--w);border-bottom:1px solid var(--bdr)">dogwood-policy.github.io</a>. Not supported here: information providers (<code>Ns::Fn(...)</code>), template slots and Rhai; a policy using them is rejected at parse time with a clear error.</p>
+</div></section>
+
+<section class="sec sec-border" id="lock"><div class="c">
+  <h2>@lock projection</h2>
+  <p>The kernel sandbox knows seven capabilities and no history, so a Dogwood policy is projected statically: a capability is allowed only when an unconditional <code>permit</code> covers every action behind it and no <code>forbid</code> touches any of them. <code>file.read</code> permits whose only condition is <code>context.input.path like "/prefix/*"</code> become a read allow-list. <code>@ask</code> permits and temporal rules grant nothing to the kernel.</p>
+  <table><thead><tr><th>capability</th><th>stands for</th></tr></thead><tbody>
+    <tr><td><code>network</code></td><td><code>network</code>, <code>net.socket</code></td></tr>
+    <tr><td><code>file_read</code></td><td><code>file.read</code> (bool or a list of globs)</td></tr>
+    <tr><td><code>file_write</code></td><td><code>file.write</code>, <code>file.delete</code>, <code>file.move</code>, <code>file.chmod</code>, <code>file.link</code>, <code>file.mkdir</code>, <code>file.special</code>, <code>file.fd_io</code></td></tr>
+    <tr><td><code>subprocess</code></td><td><code>subprocess</code>, <code>os.system</code>, <code>os.exec</code>, <code>process.fork</code>, <code>process.mp</code></td></tr>
+    <tr><td><code>ipc</code></td><td><code>process.kill</code></td></tr>
+    <tr><td><code>mmap_exec</code></td><td><code>meta.ctypes</code></td></tr>
+    <tr><td><code>sysctl</code></td><td>no hooked action: always denied by a projected policy</td></tr>
+  </tbody></table>
+</div></section>
+
+<section class="sec sec-border" id="cli"><div class="c">
+  <h2>Command line and API</h2>
+  <pre>python -m strands_inspect.dogwood check   policy.dw                 <span class="cm"># parse + expand macros; exit 2 when rejected</span>
+python -m strands_inspect.dogwood explain policy.dw                 <span class="cm"># every rule, the actions it covers, the @lock projection</span>
+python -m strands_inspect.dogwood replay  policy.dw trace.log --schema schema.cedarschema
+                                          [--event-schema e.dwschema] [--macros m.dw] [--style corpus|cli] [--unpinned]</pre>
+  <pre><span class="kw">from</span> strands_inspect <span class="kw">import</span> watch, lock, DogwoodPolicy, dogwood
+
+policy = DogwoodPolicy.from_file(<span class="str">"policies/team.dw"</span>)    <span class="cm"># or .parse(text) / .preset("sandbox")</span>
+policy.rules                                             <span class="cm"># ['allow-everything', 'no-exfil-after-secret']</span>
+dogwood.project_to_kernel(policy.policy_set)             <span class="cm"># the @lock dict</span>
+dogwood.replay(policy_text, trace_text, schema)          <span class="cm"># the reference verdict stream</span></pre>
+  <p>In <code>.strands-inspect.toml</code> a named policy may be Dogwood: <code>[watch.policies.team]</code> with <code>dogwood = "..."</code> or <code>file = "policies/team.dw"</code>; then <code>@watch(policy="team")</code>.</p>
+</div></section>
+
+<section class="sec sec-border" id="conformance"><div class="c">
+  <h2>Conformance</h2>
+  <p>The implementation is checked against the reference corpus of <code>dogwood@996d756</code>. Vendored in <code>tests/dogwood_corpus/</code> and run by <code>pytest</code>: <strong style="color:var(--w)">631 / 631 traces byte-identical</strong> across 160 temporal_only cases, 154 macro cases, 18 mixed cases and 38 documentation examples. Against the full reference checkout (<code>python scripts/dogwood_corpus.py --all &lt;checkout&gt;</code>): temporal_only <strong style="color:var(--w)">1061 / 1061</strong>, macros <strong style="color:var(--w)">254 / 254</strong>, mixed <strong style="color:var(--w)">18 / 18</strong>, docs examples <strong style="color:var(--w)">38 / 38</strong>; the 21 cases that call information providers are skipped. The reference interpreter is right by definition: expected outputs are never edited here.</p>
+</div></section>
+
+<footer><div class="c foot">
+  <span>strands-inspect · MIT · the vendored corpus is Apache-2.0</span>
+  <div class="foot-links"><a href="index.html">Home</a><a href="https://github.com/cagataycali/strands-inspect">GitHub</a><a href="https://github.com/dogwood-policy/dogwood">Dogwood</a></div>
+</div></footer>
+</body>
+</html>
