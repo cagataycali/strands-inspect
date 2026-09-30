@@ -216,17 +216,23 @@ class Authorizer:
         self,
         policy_set: PolicySet,
         schema: Optional[Schema] = None,
-        decision_kinds: Sequence[str] = ("request",),
+        event_schema: Any = None,
+        decision_kinds: Optional[Sequence[str]] = None,
     ):
+        from .event_schema import DEFAULT_EVENT_SCHEMA
+
         self.policy_set = policy_set
         self.schema = schema if schema is not None else policy_set.schema
-        self.decision_kinds = set(decision_kinds)
+        self.event_schema = event_schema if event_schema is not None else DEFAULT_EVENT_SCHEMA
+        self.decision_kinds = set(
+            decision_kinds if decision_kinds is not None else self.event_schema.decision_kinds
+        )
         self.history: List[Event] = []
         self._engine: Any = None
         if policy_set.temporal_blocks():
             from .temporal_eval import TemporalEngine
 
-            self._engine = TemporalEngine(policy_set, self.schema)
+            self._engine = TemporalEngine(policy_set, self.schema, self.event_schema)
 
     def observe(self, event: Event) -> None:
         self.history.append(event)
@@ -261,13 +267,17 @@ class Authorizer:
 
 
 def replay(
-    policy_text: str, trace_text: str, schema: Optional[Schema] = None, macros: Optional[str] = None
+    policy_text: str,
+    trace_text: str,
+    schema: Optional[Schema] = None,
+    macros: Optional[str] = None,
+    event_schema: Any = None,
 ) -> str:
     """Replay a ``.log`` trace; return the corpus verdict stream (``@ts (time point i): true|false``)."""
     from .trace import parse_trace
 
     ps = PolicySet.parse(policy_text, schema=schema, macros=macros)
-    auth = Authorizer(ps, schema)
+    auth = Authorizer(ps, schema, event_schema)
     lines: List[str] = []
     for i, ev in enumerate(parse_trace(trace_text)):
         r = auth.is_authorized(ev)

@@ -38,14 +38,6 @@ def _dedupe(rows: List[Row]) -> List[Row]:
     return out
 
 
-def event_key(ev: Any) -> Any:
-    """The key-local partition key of an event: its ``callerPrincipal`` (falls back to the scope principal)."""
-    cp = ev.logged.get("callerPrincipal") if isinstance(ev.logged, Record) else None
-    if isinstance(cp, EntityRef):
-        return cp
-    return ev.principal
-
-
 def field_lookup(record: Record, path: Sequence[str]) -> Any:
     cur: Any = record
     for seg in path:
@@ -58,10 +50,12 @@ def field_lookup(record: Record, path: Sequence[str]) -> Any:
 class TemporalEngine:
     """Owns the observed history and evaluates temporal blocks for the authorizer."""
 
-    def __init__(self, policy_set: Any, schema: Any = None, key_local: bool = True):
+    def __init__(self, policy_set: Any, schema: Any = None, event_schema: Any = None):
+        from .event_schema import DEFAULT_EVENT_SCHEMA
+
         self.policy_set = policy_set
         self.schema = schema
-        self.key_local = key_local
+        self.event_schema = event_schema if event_schema is not None else DEFAULT_EVENT_SCHEMA
         self.history: List[Any] = []
 
     def observe(self, event: Any) -> None:
@@ -76,26 +70,55 @@ class TemporalEngine:
         request: Request,
         store: EntityStore,
     ) -> bool:
-        slice_ = self._slice(event)
-        ctx = _Ctx(slice_, request, store, self.history)
+        ctx = _Ctx([], request, store, self.history, self.event_schema.pins)
+        slice_ = self._slice(ctx)
+        ctx.events = slice_
         rows = ctx.cond(block.cond, {}, len(slice_) - 1)
         return bool(rows)
 
-    def _slice(self, event: Any) -> List[Any]:
-        if not self.key_local:
+    def _slice(self, ctx: "_Ctx") -> List[Any]:
+        """Key-local slice: events agreeing with the request on every universal pin."""
+        pins = self.event_schema.universal_pins
+        if not pins:
             return list(self.history)
-        key = event_key(event)
-        return [ev for ev in self.history if event_key(ev) == key]
+        keys = [ctx.resolve_ref(ref) for _, ref in pins]
+        out = []
+        for ev in self.history:
+            ok = True
+            for (path, _), key in zip(pins, keys):
+                fv = field_lookup(ev.logged, path)
+                if key is _UNRESOLVED or fv is _UNRESOLVED or not values_equal(fv, key):
+                    ok = False
+                    break
+            if ok:
+                out.append(ev)
+        return out
 
 
 class _Ctx:
     """One evaluation: the slice, the current request, and the row-set semantics."""
 
-    def __init__(self, slice_: List[Any], request: Request, store: EntityStore, history: List[Any]):
+    def __init__(
+        self,
+        slice_: List[Any],
+        request: Request,
+        store: EntityStore,
+        history: List[Any],
+        pins: Any = None,
+    ):
         self.events = slice_
         self.request = request
         self.store = store
+        self.pins = (
+            pins or {}
+        )  # kind -> [(field path, ref)] injected onto every predicate of that kind
         self.index_of = {id(ev): idx for idx, ev in enumerate(history)}  # global timepoint index
+
+    def resolve_ref(self, ref: Tuple[str, ...]) -> Any:
+        """A pin's request-side value: principal / resource (+ attribute) or context.<path>."""
+        if ref[0] == "context":
+            return field_lookup(self.request.context, list(ref[1:]))
+        return self.term(A.TScopeField(ref[0], list(ref[1:])), {}, 0)
 
     def tp(self, j: int) -> int:
         return self.index_of[id(self.events[j])]
@@ -289,6 +312,11 @@ class _Ctx:
                 continue
             tv = self.term(term, row, j)
             if tv is _UNRESOLVED or not values_equal(tv, fv):
+                return []
+        for path, ref in self.pins.get(c.kind, ()):
+            fv = field_lookup(ev.logged, list(path))
+            pv = self.resolve_ref(ref)
+            if fv is _UNRESOLVED or pv is _UNRESOLVED or not values_equal(fv, pv):
                 return []
         return [row]
 
