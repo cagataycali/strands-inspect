@@ -188,6 +188,10 @@ per watched function. The reference guide is at [dogwood-policy.github.io](https
 The legacy dict / callable form still works unchanged:
 `@watch(policy={"file.write": "deny", "network": {"action": "allow", "hosts": ["*.openai.com"]}})`.
 
+Every policy is validated against the schema when it is loaded: a typo such as
+`context.input.hostname` is a `SchemaError` naming the fields the action does declare, not a
+rule that silently never applies.
+
 ### Check, replay, explain
 
 ```
