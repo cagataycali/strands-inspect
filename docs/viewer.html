@@ -385,7 +385,7 @@ function rSyscallLog(){
   const sc=S?.syscalls||[];if(!sc.length){$('scPanel').style.display='none';return}
   $('scPanel').style.display='block';$('scTag').textContent=sc.length+' events';const t0=sc[0].timestamp;
   $('scBody').innerHTML=sc.map(function(s,i){const ms=((s.timestamp-t0)/1e6).toFixed(1);const deny=s.decision==='deny';const col=CAT_COLORS[s.action]||'#888';const tag=catTag(s.action);
-    return'<div class="ev'+(deny?' deny':'')+'" onclick="showEvent('+i+')"><div class="et tag-'+tag+'" style="border-left:3px solid '+col+'">'+s.action+'</div><div class="ed">'+esc(s.detail||'')+'</div>'+(deny?'<span style="color:var(--r);font-size:10px;font-weight:700">DENIED</span>':'')+'<div class="ets">'+ms+'ms</div></div>';}).join('');
+    return'<div class="ev'+(deny?' deny':'')+'" onclick="showEvent('+i+')"><div class="et tag-'+tag+'" style="border-left:3px solid '+col+'">'+s.action+'</div><div class="ed">'+esc(s.detail||'')+'</div>'+(deny?'<span style="color:var(--r);font-size:10px;font-weight:700">DENIED'+(s.rules&&s.rules.length?' by '+esc(s.rules.join(', ')):'')+'</span>':(s.rules&&s.rules.length?'<span style="color:var(--dim);font-size:10px">'+esc(s.rules.join(', '))+'</span>':''))+'<div class="ets">'+ms+'ms</div></div>';}).join('');
 }
 
 function rGC(){
@@ -426,7 +426,7 @@ function setSpeed(){speedIdx=(speedIdx+1)%speeds.length;playSpeed=speeds[speedId
 
 // ═══ Modals ═══
 function showEvent(i){var sc=S?.syscalls||[];if(!sc[i])return;var e=sc[i];var t0=sc[0].timestamp;var ms=((e.timestamp-t0)/1e6).toFixed(2);var col=CAT_COLORS[e.action]||'#888';
-  $('modalC').innerHTML='<button class="close" onclick="closeModal()">✕</button><h3 style="color:'+col+'">'+(e.decision==='deny'?'🚫 ':'')+e.action+'</h3><div style="margin:8px 0;font-size:12px;color:var(--dim)">@ '+ms+'ms'+(e.duration_ns?' · '+(e.duration_ns/1e6).toFixed(2)+'ms':'')+'</div><pre>'+esc(e.detail||'(no detail)')+'</pre><div style="margin-top:12px;font-size:12px"><strong>Decision:</strong> <span style="color:'+(e.decision==='deny'?'var(--r)':'var(--w)')+'">'+e.decision+'</span></div>'+(e.result_preview?'<div style="margin-top:8px;font-size:12px;color:var(--dim)">Result: '+esc(e.result_preview)+'</div>':'');
+  $('modalC').innerHTML='<button class="close" onclick="closeModal()">✕</button><h3 style="color:'+col+'">'+(e.decision==='deny'?'🚫 ':'')+e.action+'</h3><div style="margin:8px 0;font-size:12px;color:var(--dim)">@ '+ms+'ms'+(e.duration_ns?' · '+(e.duration_ns/1e6).toFixed(2)+'ms':'')+'</div><pre>'+esc(e.detail||'(no detail)')+'</pre><div style="margin-top:12px;font-size:12px"><strong>Decision:</strong> <span style="color:'+(e.decision==='deny'?'var(--r)':'var(--w)')+'">'+e.decision+'</span>'+(e.rules&&e.rules.length?' <span style="color:var(--dim)">by rule '+esc(e.rules.join(', '))+'</span>':'')+'</div>'+(e.result_preview?'<div style="margin-top:8px;font-size:12px;color:var(--dim)">Result: '+esc(e.result_preview)+'</div>':'');
   $('modal').classList.add('show');}
 function showFunc(i){var f=D.cpu?.top_functions||[];if(!f[i])return;var fn=f[i];var pct=f[0].cumtime_ms?(fn.cumtime_ms/f[0].cumtime_ms*100).toFixed(1):'?';
   $('modalC').innerHTML='<button class="close" onclick="closeModal()">✕</button><h3>'+fn.name+'</h3><pre>File: '+fn.file+':'+fn.line+'\nCalls: '+fn.calls.toLocaleString()+'\nCumulative: '+fn.cumtime_ms.toFixed(3)+'ms ('+pct+'%)\nSelf: '+fn.tottime_ms.toFixed(3)+'ms\nPer call: '+fn.per_call_ms.toFixed(3)+'ms</pre>';
