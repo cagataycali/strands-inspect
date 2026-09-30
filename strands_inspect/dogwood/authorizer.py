@@ -272,15 +272,32 @@ def replay(
     schema: Optional[Schema] = None,
     macros: Optional[str] = None,
     event_schema: Any = None,
+    style: str = "corpus",
 ) -> str:
-    """Replay a ``.log`` trace; return the corpus verdict stream (``@ts (time point i): true|false``)."""
+    """Replay a ``.log`` trace and return the verdict stream.
+
+    ``style="corpus"``: ``@ts (time point i): true|false`` with ``i`` the index in the whole
+    trace (the reference corpus format). ``style="cli"``: the reference CLI's
+    ``@ts (time point n): ALLOW|DENY  [rules: k, ...]`` with ``n`` counting verdicts and the
+    rule indices of the determining policies.
+    """
     from .trace import parse_trace
 
     ps = PolicySet.parse(policy_text, schema=schema, macros=macros)
     auth = Authorizer(ps, schema, event_schema)
     lines: List[str] = []
+    n = 0
+    index = {p.label: p.index for p in ps.policies}
     for i, ev in enumerate(parse_trace(trace_text)):
         r = auth.is_authorized(ev)
-        if r is not None:
+        if r is None:
+            continue
+        if style == "cli":
+            line = f"@{ev.ts} (time point {n}): {'ALLOW' if r.allowed else 'DENY'}"
+            if r.rules:
+                line += "  [rules: " + ", ".join(str(index[k]) for k in r.rules) + "]"
+            lines.append(line)
+        else:
             lines.append(f"@{ev.ts} (time point {i}): {'true' if r.allowed else 'false'}")
+        n += 1
     return "\n".join(lines)
