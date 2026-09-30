@@ -58,7 +58,7 @@ class DogwoodPolicy:
 
     @classmethod
     def parse(cls, text: str, name: str = "<inline>") -> "DogwoodPolicy":
-        ps = PolicySet.parse(text, schema=inspect_schema(), source=name)
+        ps = PolicySet.parse(text, schema=inspect_schema(), source=name, validate=True)
         return cls(ps, text, name)
 
     @classmethod

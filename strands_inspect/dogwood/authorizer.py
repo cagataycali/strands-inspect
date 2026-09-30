@@ -73,8 +73,13 @@ class PolicySet:
         schema: Optional[Schema] = None,
         source: str = "",
         macros: Optional[str] = None,
+        validate: bool = False,
     ) -> "PolicySet":
-        """Parse ``text``, expand macros (the default library plus ``macros``), reject templates."""
+        """Parse ``text``, expand macros (the default library plus ``macros``), reject templates.
+
+        With ``validate=True`` and a schema, every ``context.<path>`` and predicate field a rule
+        reads must be declared for the actions its scope covers (SchemaError otherwise).
+        """
         from .macros import expand_policy_set
 
         ast = parse_policy_set(text, source)
@@ -89,7 +94,12 @@ class PolicySet:
                         sc.col,
                         source,
                     )
-        return cls(ast, text, schema)
+        ps = cls(ast, text, schema)
+        if schema is not None and validate:
+            from .validate import validate_against_schema
+
+            validate_against_schema(ps.policies, schema, ps.actions_covered, source)
+        return ps
 
     @property
     def labels(self) -> List[str]:

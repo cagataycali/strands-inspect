@@ -438,3 +438,42 @@ def test_readme_recipes_and_killer_example_parse_against_the_inspect_schema():
         + len('@watch(policy="""') : readme.index('""")\ndef agent')
     ]
     assert DogwoodPolicy.parse(killer).rules == ["policy0", "no-exfil-after-secret"]
+
+
+# ------------------------------------------------------------------ schema validation (dogfood finding)
+@pytest.mark.parametrize(
+    "src, needle",
+    [
+        ('permit(principal, action == Inspect::Action::"network", resource) when { context.input.hostname == "x" };', "context.input.hostname"),
+        ('permit(principal, action == Inspect::Action::"network", resource) when { context.input.hostname == "x" };', "fields: detail, host, method, op, port, scheme, url"),
+        ('permit(principal, action in [Inspect::Action::"os"], resource) when { context.input.path == "x" };', "context.input.path"),
+        ('permit(principal, action, resource) when { context.sytem.now > datetime("2024-01-01") };', "context.sytem"),
+        ('permit(principal, action, resource) when temporal { formerly within 1h Inspect::Action::"file.read"::request{ input.sensitiv: true } };', "has no field `input.sensitiv`"),
+        ('permit(principal, action, resource) when temporal { formerly within 1h Inspect::Action::"file.reed"::request{} };', "unknown action"),
+    ],
+)  # fmt: skip
+def test_typos_in_context_paths_are_rejected_at_parse_time(src, needle):
+    with pytest.raises(DogwoodError) as ei:
+        DogwoodPolicy.parse(src)
+    assert needle in str(ei.value), str(ei.value)
+
+
+def test_valid_context_reads_pass_validation():
+    DogwoodPolicy.parse(
+        'permit(principal, action, resource) when { context.input.detail like "*" && context.system.session == "s" };'
+        "permit(principal, action, resource) when { context has output && context.output.allowed };"
+        'permit(principal, action in [Inspect::Action::"file"], resource) when { context.input.path like "/tmp/*" };'
+        'permit(principal, action, resource) when temporal { formerly within 1h Inspect::Action::"network"::response{ input.host: context.input.detail, output.allowed: true, callerPrincipal: principal, requestId: _ } };'
+    )
+    for name in PRESETS:
+        DogwoodPolicy.preset(name)
+
+
+def test_cli_check_reports_schema_typos(capsys, tmp_path):
+    bad = tmp_path / "typo.dw"
+    bad.write_text(
+        'permit(principal, action, resource) when { context.input.hostname == "x" };',
+        encoding="utf-8",
+    )
+    assert cli.main(["check", str(bad)]) == 2
+    assert "context.input.hostname" in capsys.readouterr().err

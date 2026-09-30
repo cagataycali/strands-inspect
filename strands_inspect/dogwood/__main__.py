@@ -36,7 +36,11 @@ def _schema(path: Optional[str]):
 
 def cmd_check(a: argparse.Namespace) -> int:
     ps = PolicySet.parse(
-        _read(a.policy), _schema(a.schema), a.policy, _read(a.macros) if a.macros else None
+        _read(a.policy),
+        _schema(a.schema),
+        a.policy,
+        _read(a.macros) if a.macros else None,
+        validate=True,
     )
     print(
         f"OK: {len(ps.policies)} rule(s), {len(ps.temporal_blocks())} temporal leaf/leaves: {', '.join(ps.labels)}"
