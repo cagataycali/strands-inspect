@@ -1,0 +1,16 @@
+// deny_write: read-only filesystem. Writes, deletes, moves and permission changes are
+// forbidden; everything else (reads, network, subprocesses, imports) is permitted.
+@id("allow-everything")
+permit ( principal, action, resource );
+
+@id("deny-file-mutation")
+forbid (
+    principal,
+    action in [
+        Inspect::Action::"file.write",
+        Inspect::Action::"file.delete",
+        Inspect::Action::"file.move",
+        Inspect::Action::"file.chmod"
+    ],
+    resource
+);

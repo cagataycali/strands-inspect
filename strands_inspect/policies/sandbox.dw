@@ -1,0 +1,8 @@
+// sandbox: the function may read files and import modules; every other hooked action is
+// denied. Dogwood is default-deny, so only the two permits are needed: no network, no
+// subprocess, no writes, no process control, no ctypes/eval.
+@id("allow-file-read")
+permit ( principal, action == Inspect::Action::"file.read", resource );
+
+@id("allow-import")
+permit ( principal, action == Inspect::Action::"import", resource );

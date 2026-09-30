@@ -1,0 +1,10 @@
+// strict: like sandbox, but every file read and every import needs the operator's
+// interactive approval. A permit annotated @ask is granted only after a y/N prompt;
+// everything else is denied by default.
+@ask
+@id("ask-file-read")
+permit ( principal, action == Inspect::Action::"file.read", resource );
+
+@ask
+@id("ask-import")
+permit ( principal, action == Inspect::Action::"import", resource );

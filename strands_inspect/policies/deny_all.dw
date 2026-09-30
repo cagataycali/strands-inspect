@@ -1,0 +1,4 @@
+// deny_all: nothing is permitted. Dogwood is default-deny, so an empty policy set would
+// behave the same; the explicit forbid names the rule in every PolicyViolation.
+@id("deny-everything")
+forbid ( principal, action, resource );

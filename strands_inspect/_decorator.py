@@ -214,10 +214,12 @@ BUILTIN_POLICIES = {
 class PolicyViolation(PermissionError):
     """Raised when a syscall is denied by policy."""
 
-    def __init__(self, action: str, detail: str):
+    def __init__(self, action: str, detail: str, rules: Optional[List[str]] = None):
         self.action = action
         self.detail = detail
-        super().__init__(f"🚫 Policy denied: {action} — {detail}")
+        self.rules = list(rules or [])
+        by = f" (rule {', '.join(self.rules)})" if self.rules else ""
+        super().__init__(f"🚫 Policy denied: {action} — {detail}{by}")
 
 
 # ─── Granular Policy Matching ────────────────────────────────────────
@@ -328,15 +330,26 @@ def _resolve_decision(policy_entry, action: str, detail: str) -> str:
 class SyscallEvent:
     """A recorded syscall interception."""
 
-    __slots__ = ("timestamp", "action", "detail", "decision", "duration_ns", "result_preview")
+    __slots__ = (
+        "timestamp",
+        "action",
+        "detail",
+        "decision",
+        "duration_ns",
+        "result_preview",
+        "rules",
+    )
 
-    def __init__(self, action: str, detail: str, decision: str = "allow"):
+    def __init__(
+        self, action: str, detail: str, decision: str = "allow", rules: Optional[List[str]] = None
+    ):
         self.timestamp = time.time_ns()
         self.action = action
         self.detail = detail
         self.decision = decision
         self.duration_ns = 0
         self.result_preview = None
+        self.rules: List[str] = list(rules or [])  # the @id rules that decided (Dogwood)
 
     def to_dict(self) -> dict:
         return {
@@ -346,6 +359,7 @@ class SyscallEvent:
             "decision": self.decision,
             "duration_ns": self.duration_ns,
             "result_preview": self.result_preview,
+            "rules": self.rules,
         }
 
 
@@ -531,44 +545,50 @@ class InspectSession:
 class SyscallHooks:
     """Intercepts file I/O, network, subprocess, os.system, imports, and more."""
 
-    def __init__(self, policy: dict):
-        self.policy = policy
+    def __init__(self, policy: Optional[dict] = None, bridge: Any = None):
+        self.policy = policy or {}
+        self.bridge = bridge  # a dogwood.bridge.DogwoodBridge when the policy is Dogwood
         self.events: List[SyscallEvent] = []
         self._originals: dict = {}
         self._installed = False
 
-    def _check_policy(self, action: str, detail: str) -> str:
+    def _check_policy(self, action: str, detail: str, **fields: Any) -> str:
         """Check policy and return decision: allow, deny, log, ask.
 
-        Resolution order:
-        1. Exact action match (e.g., "file.read")
-        2. Category match (e.g., "file")
-        3. Default: "log"
+        With a Dogwood bridge the structured ``fields`` (path, host, argv, ...) become the
+        request's ``context.input`` and the determining ``@id`` rules land on the event.
+        Legacy dict policies resolve by exact action, then category, then "log".
         """
-        # Exact match first
-        category = action.split(".")[0]
-        policy_entry = self.policy.get(action, self.policy.get(category))
-
-        decision = _resolve_decision(policy_entry, action, detail)
+        rules: List[str] = []
+        if self.bridge is not None:
+            verdict = self.bridge.check(action, detail, **fields)
+            decision, rules = verdict.decision, verdict.rules
+        else:
+            category = action.split(".")[0]
+            policy_entry = self.policy.get(action, self.policy.get(category))
+            decision = _resolve_decision(policy_entry, action, detail)
 
         if decision == "deny":
-            event = SyscallEvent(action, detail, "deny")
-            self.events.append(event)
-            raise PolicyViolation(action, detail)
+            self.events.append(SyscallEvent(action, detail, "deny", rules))
+            if self.bridge is not None:
+                self.bridge.record(False)
+            raise PolicyViolation(action, detail, rules)
 
         if decision == "ask":
             answer = (
                 input(f"🔍 Allow {action}: {detail}? [y/N] ").strip().lower()
             )  # pragma: no cover
             if answer != "y":
-                event = SyscallEvent(action, detail, "deny")
-                self.events.append(event)
-                raise PolicyViolation(action, detail)
+                self.events.append(SyscallEvent(action, detail, "deny", rules))
+                if self.bridge is not None:
+                    self.bridge.record(False)
+                raise PolicyViolation(action, detail, rules)
             decision = "allow"
 
         # Log/allow it
-        event = SyscallEvent(action, detail, decision)
-        self.events.append(event)
+        self.events.append(SyscallEvent(action, detail, decision, rules))
+        if self.bridge is not None:
+            self.bridge.record(True)
         return decision
 
     def install(self):
@@ -585,7 +605,9 @@ class SyscallHooks:
             path_str = str(file)
             is_write = any(c in mode for c in "wxa+")
             action = "file.write" if is_write else "file.read"
-            hooks._check_policy(action, f"{path_str} (mode={mode})")
+            hooks._check_policy(
+                action, f"{path_str} (mode={mode})", path=path_str, mode=mode, op="open"
+            )
             t0 = time.time_ns()
             result = hooks._originals["open"](file, mode, *args, **kwargs)
             if hooks.events:
@@ -603,7 +625,13 @@ class SyscallHooks:
                 flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND)
             )
             action = "file.write" if is_write else "file.read"
-            hooks._check_policy(action, f"{path_str} (os.open flags={flags:#x})")
+            hooks._check_policy(
+                action,
+                f"{path_str} (os.open flags={flags:#x})",
+                path=path_str,
+                mode=f"{flags:#x}",
+                op="os.open",
+            )
             return hooks._originals["os_open"](path, flags, mode, *args, **kwargs)
 
         os.open = hooked_os_open
@@ -613,11 +641,11 @@ class SyscallHooks:
         self._originals["os_unlink"] = os.unlink
 
         def hooked_os_remove(path, *args, **kwargs):
-            hooks._check_policy("file.delete", str(path))
+            hooks._check_policy("file.delete", str(path), path=str(path), op="os.remove")
             return hooks._originals["os_remove"](path, *args, **kwargs)
 
         def hooked_os_unlink(path, *args, **kwargs):
-            hooks._check_policy("file.delete", str(path))
+            hooks._check_policy("file.delete", str(path), path=str(path), op="os.unlink")
             return hooks._originals["os_unlink"](path, *args, **kwargs)
 
         os.remove = hooked_os_remove
@@ -627,7 +655,7 @@ class SyscallHooks:
         self._originals["os_rmdir"] = os.rmdir
 
         def hooked_os_rmdir(path, *args, **kwargs):
-            hooks._check_policy("file.delete", str(path))
+            hooks._check_policy("file.delete", str(path), path=str(path), op="os.rmdir")
             return hooks._originals["os_rmdir"](path, *args, **kwargs)
 
         os.rmdir = hooked_os_rmdir
@@ -645,7 +673,7 @@ class SyscallHooks:
         self._originals["shutil_rmtree"] = _shutil_mod.rmtree
 
         def hooked_shutil_rmtree(path, *args, **kwargs):
-            hooks._check_policy("file.delete", f"rmtree {path}")
+            hooks._check_policy("file.delete", f"rmtree {path}", path=str(path), op="shutil.rmtree")
             return hooks._originals["shutil_rmtree"](path, *args, **kwargs)
 
         _shutil_mod.rmtree = hooked_shutil_rmtree
@@ -655,11 +683,15 @@ class SyscallHooks:
         self._originals["os_replace"] = os.replace
 
         def hooked_os_rename(src, dst, *args, **kwargs):
-            hooks._check_policy("file.move", f"{src} → {dst}")
+            hooks._check_policy(
+                "file.move", f"{src} → {dst}", src=str(src), dst=str(dst), op="os.rename"
+            )
             return hooks._originals["os_rename"](src, dst, *args, **kwargs)
 
         def hooked_os_replace(src, dst, *args, **kwargs):
-            hooks._check_policy("file.move", f"{src} → {dst}")
+            hooks._check_policy(
+                "file.move", f"{src} → {dst}", src=str(src), dst=str(dst), op="os.replace"
+            )
             return hooks._originals["os_replace"](src, dst, *args, **kwargs)
 
         os.rename = hooked_os_rename
@@ -681,19 +713,43 @@ class SyscallHooks:
         self._originals["shutil_copytree"] = _shutil_mod.copytree
 
         def hooked_shutil_move(src, dst, *args, **kwargs):
-            hooks._check_policy("file.move", f"shutil.move {src} → {dst}")
+            hooks._check_policy(
+                "file.move",
+                f"shutil.move {src} → {dst}",
+                src=str(src),
+                dst=str(dst),
+                op="shutil.move",
+            )
             return hooks._originals["shutil_move"](src, dst, *args, **kwargs)
 
         def hooked_shutil_copy(src, dst, *args, **kwargs):
-            hooks._check_policy("file.write", f"shutil.copy {src} → {dst}")
+            hooks._check_policy(
+                "file.write",
+                f"shutil.copy {src} → {dst}",
+                path=str(dst),
+                mode="w",
+                op="shutil.copy",
+            )
             return hooks._originals["shutil_copy"](src, dst, *args, **kwargs)
 
         def hooked_shutil_copy2(src, dst, *args, **kwargs):
-            hooks._check_policy("file.write", f"shutil.copy2 {src} → {dst}")
+            hooks._check_policy(
+                "file.write",
+                f"shutil.copy2 {src} → {dst}",
+                path=str(dst),
+                mode="w",
+                op="shutil.copy2",
+            )
             return hooks._originals["shutil_copy2"](src, dst, *args, **kwargs)
 
         def hooked_shutil_copytree(src, dst, *args, **kwargs):
-            hooks._check_policy("file.write", f"shutil.copytree {src} → {dst}")
+            hooks._check_policy(
+                "file.write",
+                f"shutil.copytree {src} → {dst}",
+                path=str(dst),
+                mode="w",
+                op="shutil.copytree",
+            )
             return hooks._originals["shutil_copytree"](src, dst, *args, **kwargs)
 
         _shutil_mod.move = hooked_shutil_move
@@ -705,7 +761,13 @@ class SyscallHooks:
         self._originals["os_chmod"] = os.chmod
 
         def hooked_os_chmod(path, mode, *args, **kwargs):
-            hooks._check_policy("file.chmod", f"chmod {oct(mode)} {path}")
+            hooks._check_policy(
+                "file.chmod",
+                f"chmod {oct(mode)} {path}",
+                path=str(path),
+                mode=oct(mode),
+                op="os.chmod",
+            )
             return hooks._originals["os_chmod"](path, mode, *args, **kwargs)
 
         os.chmod = hooked_os_chmod
@@ -714,7 +776,13 @@ class SyscallHooks:
             self._originals["os_chown"] = os.chown
 
             def hooked_os_chown(path, uid, gid, *args, **kwargs):
-                hooks._check_policy("file.chmod", f"chown {uid}:{gid} {path}")
+                hooks._check_policy(
+                    "file.chmod",
+                    f"chown {uid}:{gid} {path}",
+                    path=str(path),
+                    mode=f"{uid}:{gid}",
+                    op="os.chown",
+                )
                 return hooks._originals["os_chown"](path, uid, gid, *args, **kwargs)
 
             os.chown = hooked_os_chown
@@ -726,12 +794,41 @@ class SyscallHooks:
         self._originals["subprocess_check_output"] = _subprocess_mod.check_output
         self._originals["subprocess_check_call"] = _subprocess_mod.check_call
 
+        def _cmd_fields(args, kwargs):
+            cmd = kwargs.get("args", args[0] if args else "")
+            if isinstance(cmd, (list, tuple)):
+                argv = [str(x) for x in cmd]
+                shell = bool(kwargs.get("shell", False))
+            else:
+                argv = str(cmd).split()
+                shell = bool(kwargs.get("shell", False)) or " " in str(cmd)
+            program = os.path.basename(argv[0]) if argv else ""
+            return {
+                "command": _cmd_str(args, kwargs)[:200],
+                "argv": argv,
+                "program": program,
+                "shell": shell,
+            }
+
+        def _addr_fields(address):
+            if isinstance(address, (tuple, list)) and len(address) >= 2:
+                return {
+                    "host": str(address[0]),
+                    "port": int(address[1]) if str(address[1]).isdigit() else 0,
+                }
+            return {"host": str(address)}
+
         def _cmd_str(args, kwargs):
             cmd = args[0] if args else kwargs.get("args", "?")
             return " ".join(cmd) if isinstance(cmd, (list, tuple)) else str(cmd)
 
         def hooked_run(*args, **kwargs):
-            hooks._check_policy("subprocess", _cmd_str(args, kwargs)[:200])
+            hooks._check_policy(
+                "subprocess",
+                _cmd_str(args, kwargs)[:200],
+                op="subprocess.run",
+                **_cmd_fields(args, kwargs),
+            )
             t0 = time.time_ns()
             result = hooks._originals["subprocess_run"](*args, **kwargs)
             if hooks.events:
@@ -744,22 +841,39 @@ class SyscallHooks:
         original_popen_init = _subprocess_mod.Popen.__init__
 
         def hooked_popen_init(self_popen, *args, **kwargs):
-            hooks._check_policy("subprocess", _cmd_str(args, kwargs)[:200])
+            hooks._check_policy(
+                "subprocess",
+                _cmd_str(args, kwargs)[:200],
+                op="subprocess.Popen",
+                **_cmd_fields(args, kwargs),
+            )
             return original_popen_init(self_popen, *args, **kwargs)
 
         _subprocess_mod.Popen.__init__ = hooked_popen_init
         self._originals["Popen.__init__"] = original_popen_init
 
         def hooked_call(*a, **kw):
-            hooks._check_policy("subprocess", _cmd_str(a, kw)[:200])
+            hooks._check_policy(
+                "subprocess", _cmd_str(a, kw)[:200], op="subprocess.call", **_cmd_fields(a, kw)
+            )
             return hooks._originals["subprocess_call"](*a, **kw)
 
         def hooked_check_output(*a, **kw):
-            hooks._check_policy("subprocess", _cmd_str(a, kw)[:200])
+            hooks._check_policy(
+                "subprocess",
+                _cmd_str(a, kw)[:200],
+                op="subprocess.check_output",
+                **_cmd_fields(a, kw),
+            )
             return hooks._originals["subprocess_check_output"](*a, **kw)
 
         def hooked_check_call(*a, **kw):
-            hooks._check_policy("subprocess", _cmd_str(a, kw)[:200])
+            hooks._check_policy(
+                "subprocess",
+                _cmd_str(a, kw)[:200],
+                op="subprocess.check_call",
+                **_cmd_fields(a, kw),
+            )
             return hooks._originals["subprocess_check_call"](*a, **kw)
 
         _subprocess_mod.call = hooked_call
@@ -770,7 +884,9 @@ class SyscallHooks:
         self._originals["os_system"] = os.system
 
         def hooked_os_system(command):
-            hooks._check_policy("os.system", str(command)[:200])
+            hooks._check_policy(
+                "os.system", str(command)[:200], command=str(command), shell=True, op="os.system"
+            )
             return hooks._originals["os_system"](command)
 
         os.system = hooked_os_system
@@ -778,7 +894,13 @@ class SyscallHooks:
         self._originals["os_popen"] = os.popen
 
         def hooked_os_popen(command, *args, **kwargs):
-            hooks._check_policy("os.system", f"popen: {str(command)[:200]}")
+            hooks._check_policy(
+                "os.system",
+                f"popen: {str(command)[:200]}",
+                command=str(command),
+                shell=True,
+                op="os.popen",
+            )
             return hooks._originals["os_popen"](command, *args, **kwargs)
 
         os.popen = hooked_os_popen
@@ -841,7 +963,9 @@ class SyscallHooks:
 
             def hooked_connect(self_sock, address):
                 addr_str = str(address)
-                hooks._check_policy("network", f"connect → {addr_str}")
+                hooks._check_policy(
+                    "network", f"connect → {addr_str}", op="socket.connect", **_addr_fields(address)
+                )
                 return hooks._originals["socket_connect"](self_sock, address)
 
             socket.socket.connect = hooked_connect
@@ -850,7 +974,12 @@ class SyscallHooks:
             self._originals["socket_create_connection"] = socket.create_connection
 
             def hooked_create_connection(address, *args, **kwargs):
-                hooks._check_policy("network", f"create_connection → {address}")
+                hooks._check_policy(
+                    "network",
+                    f"create_connection → {address}",
+                    op="socket.create_connection",
+                    **_addr_fields(address),
+                )
                 return hooks._originals["socket_create_connection"](address, *args, **kwargs)
 
             socket.create_connection = hooked_create_connection
@@ -865,7 +994,9 @@ class SyscallHooks:
 
             def hooked_urlopen(url, *args, **kwargs):
                 url_str = str(url)[:200]
-                hooks._check_policy("network", f"urlopen → {url_str}")
+                hooks._check_policy(
+                    "network", f"urlopen → {url_str}", url=url_str, op="urllib.request.urlopen"
+                )
                 t0 = time.time_ns()
                 result = hooks._originals["urlopen"](url, *args, **kwargs)
                 if hooks.events:
@@ -882,7 +1013,13 @@ class SyscallHooks:
             self._originals["requests_request"] = _req.Session.request
 
             def hooked_request(self_session, method, url, *args, **kwargs):
-                hooks._check_policy("network", f"{method} → {str(url)[:200]}")
+                hooks._check_policy(
+                    "network",
+                    f"{method} → {str(url)[:200]}",
+                    url=str(url),
+                    method=str(method).upper(),
+                    op="requests.Session.request",
+                )
                 t0 = time.time_ns()
                 result = hooks._originals["requests_request"](
                     self_session, method, url, *args, **kwargs
@@ -902,7 +1039,14 @@ class SyscallHooks:
             self._originals["http_connect"] = http.client.HTTPConnection.connect
 
             def hooked_http_connect(self_conn):
-                hooks._check_policy("network", f"http.client → {self_conn.host}:{self_conn.port}")
+                hooks._check_policy(
+                    "network",
+                    f"http.client → {self_conn.host}:{self_conn.port}",
+                    host=self_conn.host,
+                    port=self_conn.port,
+                    scheme="http",
+                    op="http.client.HTTPConnection.connect",
+                )
                 return hooks._originals["http_connect"](self_conn)
 
             http.client.HTTPConnection.connect = hooked_http_connect
@@ -911,7 +1055,14 @@ class SyscallHooks:
                 self._originals["https_connect"] = http.client.HTTPSConnection.connect
 
                 def hooked_https_connect(self_conn):
-                    hooks._check_policy("network", f"https → {self_conn.host}:{self_conn.port}")
+                    hooks._check_policy(
+                        "network",
+                        f"https → {self_conn.host}:{self_conn.port}",
+                        host=self_conn.host,
+                        port=self_conn.port,
+                        scheme="https",
+                        op="http.client.HTTPSConnection.connect",
+                    )
                     return hooks._originals["https_connect"](self_conn)
 
                 http.client.HTTPSConnection.connect = hooked_https_connect
@@ -923,7 +1074,9 @@ class SyscallHooks:
 
         def hooked_import(name, *args, **kwargs):
             if name not in sys.modules:
-                hooks._check_policy("import", name)
+                hooks._check_policy(
+                    "import", name, module=name, package=name.split(".")[0], op="__import__"
+                )
             return hooks._originals["__import__"](name, *args, **kwargs)
 
         builtins.__import__ = hooked_import
@@ -935,7 +1088,13 @@ class SyscallHooks:
             if name.startswith(".") and package:
                 full_name = f"{package}{name}"
             if full_name not in sys.modules:
-                hooks._check_policy("import", full_name)
+                hooks._check_policy(
+                    "import",
+                    full_name,
+                    module=full_name,
+                    package=full_name.split(".")[0],
+                    op="importlib.import_module",
+                )
             return hooks._originals["importlib_import_module"](name, package)
 
         _importlib_mod.import_module = hooked_import_module
@@ -945,11 +1104,15 @@ class SyscallHooks:
         self._originals["os_symlink"] = os.symlink
 
         def hooked_os_link(src, dst, *args, **kwargs):
-            hooks._check_policy("file.link", f"link {src} → {dst}")
+            hooks._check_policy(
+                "file.link", f"link {src} → {dst}", src=str(src), dst=str(dst), op="os.link"
+            )
             return hooks._originals["os_link"](src, dst, *args, **kwargs)
 
         def hooked_os_symlink(src, dst, *args, **kwargs):
-            hooks._check_policy("file.link", f"symlink {src} → {dst}")
+            hooks._check_policy(
+                "file.link", f"symlink {src} → {dst}", src=str(src), dst=str(dst), op="os.symlink"
+            )
             return hooks._originals["os_symlink"](src, dst, *args, **kwargs)
 
         os.link = hooked_os_link
@@ -960,11 +1123,11 @@ class SyscallHooks:
         self._originals["os_makedirs"] = os.makedirs
 
         def hooked_os_mkdir(path, *args, **kwargs):
-            hooks._check_policy("file.mkdir", str(path))
+            hooks._check_policy("file.mkdir", str(path), path=str(path), op="os.mkdir")
             return hooks._originals["os_mkdir"](path, *args, **kwargs)
 
         def hooked_os_makedirs(path, *args, **kwargs):
-            hooks._check_policy("file.mkdir", f"makedirs {path}")
+            hooks._check_policy("file.mkdir", f"makedirs {path}", path=str(path), op="os.makedirs")
             return hooks._originals["os_makedirs"](path, *args, **kwargs)
 
         os.mkdir = hooked_os_mkdir
@@ -975,11 +1138,19 @@ class SyscallHooks:
         self._originals["os_write"] = os.write
 
         def hooked_os_read(fd, n, *args, **kwargs):
-            hooks._check_policy("file.fd_io", f"os.read(fd={fd}, n={n})")
+            hooks._check_policy(
+                "file.fd_io", f"os.read(fd={fd}, n={n})", fd=fd, size=n, op="os.read"
+            )
             return hooks._originals["os_read"](fd, n, *args, **kwargs)
 
         def hooked_os_write(fd, data, *args, **kwargs):
-            hooks._check_policy("file.fd_io", f"os.write(fd={fd}, len={len(data)})")
+            hooks._check_policy(
+                "file.fd_io",
+                f"os.write(fd={fd}, len={len(data)})",
+                fd=fd,
+                size=len(data),
+                op="os.write",
+            )
             return hooks._originals["os_write"](fd, data, *args, **kwargs)
 
         os.read = hooked_os_read
@@ -1090,7 +1261,7 @@ class SyscallHooks:
             self._originals["os_fork"] = os.fork
 
             def hooked_os_fork():
-                hooks._check_policy("process.fork", "os.fork()")
+                hooks._check_policy("process.fork", "os.fork()", op="os.fork")
                 return hooks._originals["os_fork"]()
 
             os.fork = hooked_os_fork
@@ -1108,7 +1279,9 @@ class SyscallHooks:
         self._originals["os_kill"] = os.kill
 
         def hooked_os_kill(pid, sig):
-            hooks._check_policy("process.kill", f"kill pid={pid} sig={sig}")
+            hooks._check_policy(
+                "process.kill", f"kill pid={pid} sig={sig}", pid=pid, signal=sig, op="os.kill"
+            )
             return hooks._originals["os_kill"](pid, sig)
 
         os.kill = hooked_os_kill
@@ -1131,7 +1304,13 @@ class SyscallHooks:
             def hooked_mp_start(self_proc):
                 target = getattr(self_proc, "_target", None)
                 name = getattr(self_proc, "name", "?")
-                hooks._check_policy("process.mp", f"Process.start name={name} target={target}")
+                hooks._check_policy(
+                    "process.mp",
+                    f"Process.start name={name} target={target}",
+                    name=str(name),
+                    target=str(target),
+                    op="multiprocessing.Process.start",
+                )
                 return hooks._originals["mp_Process_start"](self_proc)
 
             _mp_mod.Process.start = hooked_mp_start
@@ -1146,7 +1325,9 @@ class SyscallHooks:
 
             class HookedCDLL:
                 def __new__(cls, name, *args, **kwargs):
-                    hooks._check_policy("meta.ctypes", f"CDLL({name})")
+                    hooks._check_policy(
+                        "meta.ctypes", f"CDLL({name})", library=str(name), op="ctypes.CDLL"
+                    )
                     return hooks._originals["ctypes_CDLL"](name, *args, **kwargs)
 
             _ctypes_mod.CDLL = HookedCDLL
@@ -1156,7 +1337,12 @@ class SyscallHooks:
                 self._originals["ctypes_cdll_LoadLibrary"] = _ctypes_mod.cdll.LoadLibrary
 
                 def hooked_LoadLibrary(name):
-                    hooks._check_policy("meta.ctypes", f"cdll.LoadLibrary({name})")
+                    hooks._check_policy(
+                        "meta.ctypes",
+                        f"cdll.LoadLibrary({name})",
+                        library=str(name),
+                        op="ctypes.cdll.LoadLibrary",
+                    )
                     return hooks._originals["ctypes_cdll_LoadLibrary"](name)
 
                 _ctypes_mod.cdll.LoadLibrary = hooked_LoadLibrary
@@ -1170,17 +1356,19 @@ class SyscallHooks:
 
         def hooked_eval(source, *args, **kwargs):
             src_preview = str(source)[:100]
-            hooks._check_policy("meta.code", f"eval({src_preview})")
+            hooks._check_policy("meta.code", f"eval({src_preview})", source=src_preview, op="eval")
             return hooks._originals["builtins_eval"](source, *args, **kwargs)
 
         def hooked_exec(source, *args, **kwargs):
             src_preview = str(source)[:100]
-            hooks._check_policy("meta.code", f"exec({src_preview})")
+            hooks._check_policy("meta.code", f"exec({src_preview})", source=src_preview, op="exec")
             return hooks._originals["builtins_exec"](source, *args, **kwargs)
 
         def hooked_compile(source, *args, **kwargs):
             src_preview = str(source)[:100]
-            hooks._check_policy("meta.code", f"compile({src_preview})")
+            hooks._check_policy(
+                "meta.code", f"compile({src_preview})", source=src_preview, op="compile"
+            )
             return hooks._originals["builtins_compile"](source, *args, **kwargs)
 
         builtins.eval = hooked_eval
@@ -1485,6 +1673,41 @@ class _MemSampler:
 # ─── The @inspect Decorator ────────────────────────────────────────
 
 
+def resolve_watch_policy(policy: Any) -> Tuple[dict, Any]:
+    """Turn the ``policy=`` argument of ``@watch`` into ``(legacy_dict, DogwoodPolicy | None)``.
+
+    Accepted: a preset name (``sandbox`` ... loads ``strands_inspect/policies/<name>.dw``); a
+    path ending in ``.dw`` (str or Path); inline Dogwood source (contains ``permit``/``forbid``
+    and a parenthesis); a ``DogwoodPolicy``; a name declared in ``.strands-inspect.toml``
+    (``[watch.policies.<name>]`` with ``dogwood = "..."``, ``file = "..."`` or a legacy dict);
+    or the legacy dict / callable, which keeps the old resolution path.
+    """
+    from strands_inspect.dogwood.bridge import PRESETS, DogwoodPolicy, looks_like_dogwood
+
+    if isinstance(policy, DogwoodPolicy):
+        return {}, policy
+    if isinstance(policy, Path):
+        return {}, DogwoodPolicy.from_file(policy)
+    if isinstance(policy, str):
+        if policy in PRESETS:
+            return {}, DogwoodPolicy.preset(policy)
+        if policy.endswith(".dw"):
+            return {}, DogwoodPolicy.from_file(policy)
+        if looks_like_dogwood(policy):
+            return {}, DogwoodPolicy.parse(policy)
+        named = get_named_policy(policy)
+        if isinstance(named, dict) and "dogwood" in named:
+            return {}, DogwoodPolicy.parse(str(named["dogwood"]), policy)
+        if isinstance(named, dict) and "file" in named:
+            return {}, DogwoodPolicy.from_file(str(named["file"]))
+        if named:
+            return dict(named), None
+        return {}, DogwoodPolicy.preset("allow_all")
+    if callable(policy) and not isinstance(policy, dict):
+        return {cat: policy for cat in ALL_CATEGORIES}, None
+    return dict(policy), None
+
+
 def watch(
     func: Callable = None,
     *,
@@ -1540,17 +1763,7 @@ def watch(
 
         def _setup(fn, args, kwargs):
             """Shared setup for sync and async wrappers."""
-            if isinstance(policy, str):
-                # Check built-in policies first, then config-defined named policies
-                if policy in BUILTIN_POLICIES:
-                    resolved_policy = BUILTIN_POLICIES[policy].copy()
-                else:
-                    named = get_named_policy(policy)
-                    resolved_policy = dict(named) if named else BUILTIN_POLICIES["allow_all"].copy()
-            elif callable(policy) and not isinstance(policy, dict):
-                resolved_policy = {cat: policy for cat in ALL_CATEGORIES}
-            else:
-                resolved_policy = dict(policy)
+            resolved_policy, dogwood_policy = resolve_watch_policy(policy)
 
             session = InspectSession(
                 func_name=fn.__name__,
@@ -1558,9 +1771,13 @@ def watch(
             )
             session.args = args
             session.kwargs = kwargs
-            session.policy = {
-                k: str(v) if not callable(v) else "<callable>" for k, v in resolved_policy.items()
-            }
+            if dogwood_policy is not None:
+                session.policy = dogwood_policy.describe()
+            else:
+                session.policy = {
+                    k: str(v) if not callable(v) else "<callable>"
+                    for k, v in resolved_policy.items()
+                }
             session._func = fn
 
             try:
@@ -1570,7 +1787,14 @@ def watch(
             except (OSError, TypeError):
                 session.source_code = ""
 
-            hooks = SyscallHooks(resolved_policy)
+            bridge = None
+            if dogwood_policy is not None:
+                from strands_inspect.dogwood.bridge import DogwoodBridge
+
+                bridge = DogwoodBridge(
+                    dogwood_policy, session.func_module, session.func_name, session.session_id
+                )
+            hooks = SyscallHooks(resolved_policy, bridge)
             hooks.install()
 
             sampler = None

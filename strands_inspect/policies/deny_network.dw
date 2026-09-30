@@ -1,0 +1,8 @@
+// deny_network: everything is permitted except the network. `net` is the action group
+// that holds `network` (connect / urlopen / requests / http.client) and `net.socket`
+// (bind / listen / send). Forbid always wins over permit.
+@id("allow-everything")
+permit ( principal, action, resource );
+
+@id("deny-network")
+forbid ( principal, action in [Inspect::Action::"net"], resource );

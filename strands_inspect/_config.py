@@ -16,7 +16,15 @@ Example .strands-inspect.toml:
     print_summary = true
     timeline_interval_ms = 50
 
-    [watch.policies.my_policy]
+    [watch.policies.readonly]             # Dogwood, inline
+    dogwood = '''
+    permit(principal, action, resource);
+    forbid(principal, action in [Inspect::Action::"file.write"], resource);
+    '''
+    [watch.policies.team]                 # Dogwood, from a file
+    file = "policies/team.dw"
+
+    [watch.policies.my_policy]            # legacy dict form
     "file.read" = "log"
     "file.write" = "deny"
     "network" = "deny"

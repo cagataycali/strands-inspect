@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "strands-inspect"
 dynamic = ["version"]
-description = "See what your code does. Control what it can do. Two decorators for any Python function."
+description = "See what your code does. Control what it can do. Two decorators for any Python function, with policies written in Dogwood (Cedar syntax + temporal conditions)."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
     {name = "Cagatay Cali", email = "cagataycali@icloud.com"}
 ]
-keywords = ["strands", "agents", "inspect", "code-execution", "dynamic-functions", "ai-tools"]
+keywords = ["strands", "agents", "inspect", "code-execution", "dynamic-functions", "ai-tools", "dogwood", "cedar", "policy"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -45,7 +45,7 @@ include = ["strands_inspect*"]
 version_file = "strands_inspect/_version.py"
 
 [tool.setuptools.package-data]
-strands_inspect = ["docs/*.html"]
+strands_inspect = ["docs/*.html", "dogwood/*.cedarschema", "policies/*.dw"]
 
 [tool.black]
 line-length = 100

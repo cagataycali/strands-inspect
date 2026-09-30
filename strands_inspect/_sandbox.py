@@ -165,7 +165,23 @@ BUILTIN_KERNEL_POLICIES = {
 
 
 def resolve_kernel_policy(policy) -> Dict:
-    """Resolve a kernel policy spec to a concrete dict."""
+    """Resolve a kernel policy spec to a concrete dict.
+
+    A Dogwood policy (a ``DogwoodPolicy``, a ``.dw`` path or inline ``permit``/``forbid``
+    source) is PROJECTED onto the seven kernel capabilities: coarse and conservative, see
+    :func:`strands_inspect.dogwood.projection.project_to_kernel`. Kernel preset names
+    (``sandbox``, ``strict``, ``deny_all``, ``default``) keep their hand-written tables.
+    """
+    from strands_inspect.dogwood.bridge import DogwoodPolicy, looks_like_dogwood
+    from strands_inspect.dogwood.projection import project_to_kernel
+
+    if isinstance(policy, DogwoodPolicy):
+        return project_to_kernel(policy.policy_set)
+    if isinstance(policy, str) and policy not in BUILTIN_KERNEL_POLICIES:
+        if policy.endswith(".dw"):
+            return project_to_kernel(DogwoodPolicy.from_file(policy).policy_set)
+        if looks_like_dogwood(policy):
+            return project_to_kernel(DogwoodPolicy.parse(policy).policy_set)
     if isinstance(policy, str):
         return BUILTIN_KERNEL_POLICIES.get(policy, SANDBOX_POLICY).copy()
     if isinstance(policy, dict):

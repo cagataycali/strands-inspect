@@ -7,6 +7,14 @@ strands-inspect — See what your code does. Control what it can do.
     @watch(policy="sandbox")        # see + block
     @lock                           # kernel-level, nothing escapes
 
+    Policies are written in Dogwood (Cedar syntax + temporal conditions):
+
+    @watch(policy='''
+        permit(principal, action, resource);
+        forbid(principal, action in [Inspect::Action::"net"], resource)
+        when temporal { formerly within 5m Inspect::Action::"file.read"::request{ input.sensitive: true } };
+    ''')
+
     from strands_inspect import inspect_tool
     agent = Agent(tools=[inspect_tool])
 """
@@ -25,6 +33,8 @@ from strands_inspect._sandbox import (
     lock,
     PolicyViolation_Lock,
 )
+from strands_inspect import dogwood
+from strands_inspect.dogwood.bridge import DogwoodPolicy
 from strands_inspect._config import (
     load_config,
     get_watch_defaults,
@@ -41,6 +51,8 @@ __all__ = [
     "watch",
     "lock",
     "inspect_tool",
+    "dogwood",
+    "DogwoodPolicy",
     "replay",
     "list_sessions",
     "InspectSession",

@@ -1,0 +1,4 @@
+// allow_all: every hooked action is permitted and recorded in the session trace.
+// This is the default of @watch: see everything, block nothing.
+@id("allow-everything")
+permit ( principal, action, resource );
