@@ -423,3 +423,18 @@ def test_cli_check_replay_explain(capsys, tmp_path):
         )
         == 0
     )
+
+
+def test_readme_recipes_and_killer_example_parse_against_the_inspect_schema():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    blocks = [b for b in readme.split("```") if "Inspect::Action" in b and "@watch" not in b]
+    assert blocks, "no Dogwood recipe block in README"
+    for block in blocks:
+        src = block.split("\n", 1)[1] if not block.startswith("\n") else block
+        pol = DogwoodPolicy.parse(src)
+        assert pol.rules
+    killer = readme[
+        readme.index('@watch(policy="""')
+        + len('@watch(policy="""') : readme.index('""")\ndef agent')
+    ]
+    assert DogwoodPolicy.parse(killer).rules == ["policy0", "no-exfil-after-secret"]

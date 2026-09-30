@@ -1,0 +1,11 @@
+// no_exfil.dw -- allow everything, but once the function has read a credential-shaped
+// file (~/.ssh, ~/.aws, *.pem, .env ...) it may not reach the network or spawn a process
+// for the next five minutes. `Inspect::Action::"net"` and `"os"` are action groups.
+@id("allow-everything")
+permit ( principal, action, resource );
+
+@id("no-exfil-after-secret")
+forbid ( principal, action in [Inspect::Action::"net", Inspect::Action::"os"], resource )
+when temporal {
+    formerly within 5m Inspect::Action::"file.read"::request{ input.sensitive: true }
+};

