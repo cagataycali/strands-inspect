@@ -124,7 +124,7 @@ class _Ctx:
         return self.index_of[id(self.events[j])]
 
     def ts(self, j: int) -> int:
-        return self.events[j].ts
+        return int(self.events[j].ts)
 
     def in_window(self, j: int, k: int, window: Any) -> bool:
         if not isinstance(window, A.Interval):
@@ -206,7 +206,8 @@ class _Ctx:
         m = getattr(self, "_c_" + type(c).__name__, None)
         if m is None:
             raise EvalError(f"cannot evaluate temporal {type(c).__name__}", c.line, c.col)
-        return m(c, env, j)
+        rows: List[Row] = m(c, env, j)
+        return rows
 
     def holds(self, c: A.TCond, env: Row, j: int) -> bool:
         return bool(self.cond(c, env, j))
@@ -268,9 +269,9 @@ class _Ctx:
         if c.op == "==":
             lu = isinstance(c.left, A.TVar) and lv is _UNRESOLVED
             ru = isinstance(c.right, A.TVar) and rv is _UNRESOLVED
-            if lu and not ru and rv is not _UNRESOLVED:
+            if lu and not ru and rv is not _UNRESOLVED and isinstance(c.left, A.TVar):
                 return [{**env, c.left.name: rv}]
-            if ru and not lu and lv is not _UNRESOLVED:
+            if ru and not lu and lv is not _UNRESOLVED and isinstance(c.right, A.TVar):
                 return [{**env, c.right.name: lv}]
         if lv is _UNRESOLVED or rv is _UNRESOLVED:
             return []

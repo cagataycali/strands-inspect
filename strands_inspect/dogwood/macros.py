@@ -10,7 +10,7 @@ Kind, arity and argument-shape mismatches are :class:`MacroError`.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from . import ast as A
 from .errors import MacroError
@@ -117,7 +117,7 @@ class Expander:
                 )
             return n
 
-        return _copy(e, fn)
+        return cast(A.Expr, _copy(e, fn))
 
     def instantiate_cedar(self, m: A.MacroDef, env: Dict[str, A.Expr], site: Any) -> A.Expr:
         def check(n: Any) -> None:
@@ -136,7 +136,7 @@ class Expander:
                 return env[n.name]
             return n
 
-        return _copy(m.body, fn)
+        return cast(A.Expr, _copy(m.body, fn))
 
     # ------------------------------------------------------------ temporal side
     def cond(self, c: A.TCond) -> A.TCond:
@@ -226,7 +226,7 @@ class Expander:
             if isinstance(t, A.TBinder):
                 name = fresh.setdefault(t.name, f"{t.name}${offset}")
                 return A.TVar(name, line=t.line, col=t.col)
-            return t
+            return cast(A.Term, t)
 
         def fn(n: Any) -> Any:
             if isinstance(n, A.IntervalParam):

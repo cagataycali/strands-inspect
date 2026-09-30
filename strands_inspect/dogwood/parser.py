@@ -8,7 +8,7 @@ mean ==", ``/`` unsupported, ``principal : Type`` legacy form, entity initialise
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, cast
 
 from . import ast as A
 from .errors import LexError, ParseError
@@ -374,7 +374,7 @@ class Parser:
         return items
 
     # ------------------------------------------------------------------ temporal: conditions
-    def _try(self, fn):
+    def _try(self, fn: Callable[[], Any]) -> Any:
         """Run ``fn``; if it signals _Backtrack, restore the position and return None.
 
         A ParseError propagates: it means the input is definitely wrong, not merely
@@ -416,7 +416,7 @@ class Parser:
         t = self.tok
         cmp = self._try(self.parse_comparison)
         if cmp is not None:
-            return cmp
+            return cast(A.TCond, cmp)
         if self.at_op("("):
             self.advance()
             c = self.parse_temporal_condition()
@@ -444,7 +444,7 @@ class Parser:
             return self.parse_tcall()
         ref = self._try(self.parse_refinable)
         if ref is not None:
-            return ref
+            return cast(A.TCond, ref)
         found = t.value if t.kind != EOF_KIND else "end of input"
         raise self.error(f"expected a temporal condition, found `{found}`", t)
 
@@ -455,7 +455,7 @@ class Parser:
             saved = self.i
             cmp = self._try(self.parse_comparison)
             if cmp is not None:
-                return cmp
+                return cast(A.TCond, cmp)
             self.i = saved
             self.advance()
             c = self.parse_temporal_condition()
@@ -469,12 +469,12 @@ class Parser:
             return A.Tp(var, **self._pos(t))
         cmp = self._try(self.parse_comparison)
         if cmp is not None:
-            return cmp
+            return cast(A.TCond, cmp)
         if t.kind == IDENT and self.peek().is_op("(") and t.value not in _TEMPORAL_KEYWORDS:
             return self.parse_tcall()
         ref = self._try(self.parse_refinable)
         if ref is not None:
-            return ref
+            return cast(A.TCond, ref)
         found = t.value if t.kind != EOF_KIND else "end of input"
         raise self.error(
             f"expected a temporal atom (predicate, `(...)`, `tp(...)`, call or comparison), found `{found}`",

@@ -253,11 +253,11 @@ class IpAddr:
 
     @property
     def is_ipv4(self) -> bool:
-        return self.net.version == 4
+        return bool(self.net.version == 4)
 
     @property
     def is_ipv6(self) -> bool:
-        return self.net.version == 6
+        return bool(self.net.version == 6)
 
     @property
     def is_loopback(self) -> bool:
@@ -307,7 +307,7 @@ def values_equal(a: Any, b: Any) -> bool:
     if isinstance(a, bool) or isinstance(b, bool):
         return isinstance(a, bool) and isinstance(b, bool) and a == b
     if isinstance(a, int) and isinstance(b, int):
-        return a == b
+        return bool(a == b)
     if type(a) is not type(b):
         return False
     return bool(a == b)

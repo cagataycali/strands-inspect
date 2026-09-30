@@ -94,7 +94,8 @@ def action_ref(category: str) -> EntityRef:
 
 
 def group_of(category: str) -> Optional[str]:
-    return ACTIONS[category][0] if category in ACTIONS else None
+    group = ACTIONS[category][0] if category in ACTIONS else None
+    return str(group) if group is not None else None
 
 
 def categories_in(group: str) -> List[str]:
